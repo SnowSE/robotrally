@@ -5,6 +5,15 @@ Kids program a racer through 10 grid mazes by dragging blocks (Forward, Turn, Re
 - Kids open `http://<laptop-ip>:5000`
 - The projector opens `http://<laptop-ip>:5000/admin` (password below)
 
+## Screenshots
+
+| Kid's screen | Projector |
+|---|---|
+| ![Lobby: kids drive their racers around a bumper-car floor with the arrow keys](docs/screenshots/kid-lobby.png) **Lobby:** drive around and bump your friends while everyone signs in. | ![Projector lobby showing the join address and every racer on the bumper-car floor](docs/screenshots/projector-lobby.png) **Lobby:** the join address, with everyone driving around. |
+| ![Level 1: toolbox on the left, the program in the middle, and the track with a bonus star](docs/screenshots/kid-race.png) **Race:** drag blocks into a program and press GO. The ⭐ is a bonus for taking the long way. | ![Projector race view with all ten levels live, the points leader, and a progress ribbon](docs/screenshots/projector-race.png) **Race:** all 10 levels live, the points leader, and everyone's progress along the bottom. |
+| ![Big trophy celebration after beating every level](docs/screenshots/kid-champion.png) **Beat every level:** a big celebration first… | ![Podium with the top three racers and their points, plus everyone else below](docs/screenshots/projector-podium.png) **Winners:** the podium by points, and everyone else below it. |
+| ![My levels: each level with its points, star status, the kid's program, and Play again](docs/screenshots/kid-my-levels.png) **…then My levels:** see your winning programs and replay any level for more points. | |
+
 ## Run it
 
 For the event, run it in Production. This turns off the practice-bot endpoint and the detailed error pages:
