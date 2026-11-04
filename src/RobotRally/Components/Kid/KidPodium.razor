@@ -5,14 +5,8 @@
     <h1 class="done-title">Race over!</h1>
     <div class="done-racer"><CharacterIcon Look="Player.Look" Class="@(_place <= 3 ? "dance" : "bob")" Size="100%" Angle="-90" /></div>
     <div class="nick-pill big">@Player.Nickname</div>
-    @if (Player.Finished)
-    {
-        <p class="done-place">You finished in <strong>@KidFinished.Ordinal(_place)</strong> place!</p>
-    }
-    else
-    {
-        <p class="done-place">You made it to <strong>level @(Player.LevelIndex + 1)</strong>. Great racing!</p>
-    }
+    <p class="done-score">⭐ @Player.Score.ToString("N0") points</p>
+    <p class="done-place">You came in <strong>@KidFinished.Ordinal(_place)</strong>@(Player.Finished ? " and beat every level!" : $" and made it to level {Player.LevelIndex + 1}.")</p>
     <p class="lobby-hint">Look at the big screen for the winners.</p>
 </div>
 

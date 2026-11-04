@@ -1,3 +1,4 @@
+@implements IDisposable
 @inject GameService Game
 @inject JoinInfo Join
 
@@ -35,7 +36,8 @@
                 <p class="drawer-note">Starting…</p>
                 break;
             case GamePhase.Race:
-                <button type="button" class="btn btn-stop" @onclick="() => Act(Game.EndRace)">🏆 End race and show winners</button>
+                <button type="button" class="btn btn-stop" @onclick="() => Act(Game.EndRace)">🏆 Finish race &amp; show scores</button>
+                <p class="drawer-note">The race keeps going until you press this. Kids who beat every level can replay levels for more points.</p>
                 break;
             case GamePhase.Podium:
                 <button type="button" class="btn btn-demo" @onclick="() => Act(Game.RaceAgain)">🔁 Same kids race again</button>
@@ -98,6 +100,11 @@
 
     private bool _confirmReset;
     private string? _confirmRemove;
+
+    // The parent passes the same parameters every time, so Blazor won't re-render this on game changes: listen directly.
+    protected override void OnInitialized() => Game.Changed += OnGameChanged;
+    private void OnGameChanged() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Game.Changed -= OnGameChanged;
 
     private string PhaseLabel => Game.Phase switch
     {

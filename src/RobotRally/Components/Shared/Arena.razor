@@ -1,0 +1,90 @@
+@* The lobby bumper-car floor. Blazor draws one car per racer; rally.js moves them every frame. *@
+@implements IAsyncDisposable
+@inject ArenaHost Host
+@inject IJSRuntime Js
+
+<div class="arena @Class" @ref="_el">
+    <div class="arena-floor" aria-hidden="true">
+        <span class="arena-logo">Robot Rally</span>
+    </div>
+    @foreach (var p in Players)
+    {
+        <div @key="p.Id" class="arena-car @(p.Id == MeId ? "me" : "")" data-id="@p.Id">
+            <div class="arena-rot">
+                <div class="arena-fx">
+                    <CharacterIcon Look="p.Look" Size="100%" />
+                </div>
+            </div>
+            <span class="arena-tag">@(p.Id == MeId ? "You!" : p.Nickname)</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<Player> Players { get; set; } = [];
+    /// <summary>The kid's own racer (highlighted, and their bumps make a sound).</summary>
+    [Parameter] public string? MeId { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private ElementReference _el;
+    private bool _attached, _disposed;
+    private int _sending; // 1 while a frame is on its way to the browser: drop frames instead of queueing them
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("rally.arena.attach", _el, MeId, MeId is not null);
+                _attached = true;
+                Host.Frame += OnFrame;
+                await Send(Host.Arena.Snapshot());
+            }
+            catch (JSDisconnectedException) { }
+            return;
+        }
+        // New racers were just drawn: place them right away (the arena may be parked, e.g. during the countdown).
+        if (_attached && !Host.Live) await Send(Host.Arena.Snapshot());
+    }
+
+    private void OnFrame(ArenaFrame frame)
+    {
+        if (_disposed || Interlocked.Exchange(ref _sending, 1) == 1) return;
+        _ = InvokeAsync(async () =>
+        {
+            try { await Push(frame); }
+            finally { Interlocked.Exchange(ref _sending, 0); }
+        });
+    }
+
+    private async Task Send(ArenaFrame frame)
+    {
+        if (Interlocked.Exchange(ref _sending, 1) == 1) return;
+        try { await Push(frame); }
+        finally { Interlocked.Exchange(ref _sending, 0); }
+    }
+
+    private async Task Push(ArenaFrame frame)
+    {
+        if (_disposed) return;
+        var payload = new
+        {
+            t = frame.Time,
+            cars = frame.Cars.Select(c => new object[] { c.Id, c.X, c.Y, c.Angle }),
+            bumps = frame.Bumps.Select(b => new object[] { b.A, b.B, b.X, b.Y, b.Strength }),
+        };
+        try { await Js.InvokeVoidAsync("rally.arena.frame", _el, payload); }
+        catch (JSDisconnectedException) { }
+        catch (TaskCanceledException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        Host.Frame -= OnFrame;
+        if (!_attached) return;
+        try { await Js.InvokeVoidAsync("rally.arena.detach", _el); } catch { }
+    }
+}

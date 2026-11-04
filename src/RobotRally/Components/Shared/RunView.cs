@@ -18,6 +18,8 @@ public sealed class RunView(IJSRuntime js)
     public string? Message { get; private set; }
     public string MessageKind { get; private set; } = "info";
     public bool Celebrate { get; set; }
+    public IReadOnlySet<(int X, int Y)> TakenStars { get; private set; } = Playback.EmptyStars;
+    public bool Fast => Anim.Speed > 1;
     public bool Running => Anim.Run is not null;
     /// <summary>Stop sits where GO was, so ignore it briefly after starting (a double-clicked GO must not cancel the run).</summary>
     public static readonly TimeSpan StopGrace = TimeSpan.FromMilliseconds(800);
@@ -26,10 +28,10 @@ public sealed class RunView(IJSRuntime js)
     public bool CanStop => Anim.Run is { } run && run.Outcome != RunOutcome.Success;
     public bool CanStopAt(DateTimeOffset now) => CanStop && now - _startedAt >= StopGrace;
 
-    public void Begin(RunResult result, DateTimeOffset start, object? tag = null)
+    public void Begin(RunResult result, DateTimeOffset start, object? tag = null, double speed = 1)
     {
         _startedAt = start;
-        Anim.Begin(result, start, tag);
+        Anim.Begin(result, start, tag, speed);
         Message = null;
         Bug = null;
         Celebrate = false;
@@ -42,8 +44,12 @@ public sealed class RunView(IJSRuntime js)
         Reset(start);
     }
 
+    /// <summary>The run's speed changed mid-run (🐇 button): keep going from where it is.</summary>
+    public void Retime(DateTimeOffset start, double speed, object? tag = null) => Anim.Retime(start, speed, tag);
+
     public void Reset(Pose start)
     {
+        TakenStars = Playback.EmptyStars;
         Pose = start;
         Status = PlayStatus.Idle;
         ActiveBlock = null;
@@ -75,7 +81,9 @@ public sealed class RunView(IJSRuntime js)
 
         var cues = new List<Cue>();
         var f = Anim.Update(now, start, cues);
-        var changed = f.Pose != Pose || f.Status != Status || f.BlockId != ActiveBlock || cues.Count > 0;
+        var stars = Playback.StarsTaken(Anim.Run, f);
+        var changed = f.Pose != Pose || f.Status != Status || f.BlockId != ActiveBlock || cues.Count > 0 || stars.Count != TakenStars.Count;
+        TakenStars = stars;
         Pose = f.Pose;
         Status = f.Status;
         ActiveBlock = f.BlockId;
@@ -85,6 +93,7 @@ public sealed class RunView(IJSRuntime js)
             switch (cue)
             {
                 case Cue.Step: js.Sfx("step"); break;
+                case Cue.Star: js.Sfx("star"); break;
                 case Cue.Turn: js.Sfx("turn"); break;
                 case Cue.Bonk:
                     js.Sfx("bonk");

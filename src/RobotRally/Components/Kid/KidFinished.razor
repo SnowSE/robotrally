@@ -1,24 +1,130 @@
+@implements IDisposable
 @inject GameService Game
 @inject IJSRuntime Js
 
-<div class="kid-done">
-    <div class="trophy">🏆</div>
-    <h1 class="done-title">You finished all @Game.Levels.Count levels!</h1>
-    <div class="done-racer"><CharacterIcon Look="Player.Look" Class="dance" Size="100%" Angle="-90" /></div>
-    <div class="nick-pill big">@Player.Nickname</div>
-    <p class="done-place">You came in <strong>@Ordinal(Game.PlaceOf(Player))</strong>!</p>
-    <p class="lobby-hint">You're a real programmer now. Watch the big screen to see everyone else race.</p>
-</div>
+@if (_party)
+{
+    <div class="kid-done champion" @onclick="EndParty">
+        <div class="champ-rays" aria-hidden="true"></div>
+        <div class="trophy">🏆</div>
+        <h1 class="done-title champ-title">You beat all @Game.Levels.Count levels!</h1>
+        <div class="done-racer"><CharacterIcon Look="Player.Look" Class="dance" Size="100%" Angle="-90" /></div>
+        <div class="nick-pill big">@Player.Nickname</div>
+        <p class="done-place">@Player.Score.ToString("N0") points · <strong>@Ordinal(Game.PlaceOf(Player))</strong> place right now</p>
+        <button type="button" class="btn btn-go" @onclick="EndParty" @onclick:stopPropagation="true">See my levels ▶</button>
+    </div>
+}
+else
+{
+    <div class="my-levels">
+        <header class="my-head">
+            <CharacterIcon Look="Player.Look" Size="70" Angle="-90" Class="bob" />
+            <div>
+                <h1 class="my-title">🏆 You're a champion, @Player.Nickname!</h1>
+                <p class="my-sub">⭐ <b>@Player.Score.ToString("N0")</b> points · <b>@Ordinal(Game.PlaceOf(Player))</b> place. Replay a level to grab stars or beat your points.</p>
+            </div>
+        </header>
+        <div class="my-grid">
+            @foreach (var level in Game.Levels)
+            {
+                var i = level.Number - 1;
+                Player.Best.TryGetValue(i, out var best);
+                <article class="my-card">
+                    <header class="my-card-head">
+                        <span class="tile-num">@level.Number</span>
+                        <span class="my-card-name">@level.Name</span>
+                        <span class="my-card-pts">@(best?.Total ?? 0)</span>
+                    </header>
+                    <div class="my-card-board"><Board Level="level" /></div>
+                    <div class="my-card-stars">
+                        @if (level.Stars.Count > 0)
+                        {
+                            @(best?.StarsTaken > 0 ? "⭐ Star found!" : "☆ Star still hiding")
+                        }
+                        else
+                        {
+                            <span class="muted">No star here</span>
+                        }
+                    </div>
+                    <div class="my-card-actions">
+                        <button type="button" class="btn btn-quiet" @onclick="() => Show(i)">👀 My program</button>
+                        <button type="button" class="btn btn-go" @onclick="() => Replay(i)">▶ Play again</button>
+                    </div>
+                </article>
+            }
+        </div>
+    </div>
+
+    @if (_showing is { } shown)
+    {
+        var level = Game.Levels[shown];
+        var program = Player.CloneSolution(shown);
+        <div class="modal-backdrop" @onclick="() => _showing = null">
+            <div class="modal program-modal" @onclick:stopPropagation="true">
+                <h2>Level @level.Number: @level.Name</h2>
+                @if (program is not null)
+                {
+                    <p class="intro-lead">Your winning program (@ProgramOps.Count(program) blocks):</p>
+                    <BlockChips Blocks="program" />
+                }
+                <div class="hint-actions">
+                    <button type="button" class="btn btn-quiet" @onclick="() => _showing = null">Close</button>
+                    <button type="button" class="btn btn-go" @onclick="() => Replay(shown)">▶ Play again</button>
+                </div>
+            </div>
+        </div>
+    }
+}
 
 @code {
     [Parameter, EditorRequired] public Player Player { get; set; } = default!;
+    /// <summary>Show the big celebration first (only the first time they get here).</summary>
+    [Parameter] public bool Celebrate { get; set; }
+    [Parameter] public EventCallback OnCelebrated { get; set; }
 
-    protected override void OnAfterRender(bool firstRender)
+    private bool _party;
+    private int? _showing;
+    private CancellationTokenSource? _partyTimer;
+
+    protected override void OnInitialized() => _party = Celebrate;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
-        Js.Sfx("finish");
-        Js.Confetti(220);
+        if (!firstRender || !_party) return;
+        Js.Sfx("champion");
+        Js.Fireworks(8);
+        await OnCelebrated.InvokeAsync();
+        _partyTimer = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(12), _partyTimer.Token);
+            EndParty();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
     }
+
+    private void EndParty()
+    {
+        if (!_party) return;
+        _party = false;
+        _partyTimer?.Cancel();
+    }
+
+    private void Show(int index)
+    {
+        _showing = index;
+        Js.Sfx("click");
+    }
+
+    private void Replay(int index)
+    {
+        _showing = null;
+        if (Game.StartPractice(Player.Token, index)) Js.Sfx("levelup");
+        else Js.Sfx("deny");
+    }
+
+    public void Dispose() => _partyTimer?.Cancel();
 
     public static string Ordinal(int n) => n switch
     {

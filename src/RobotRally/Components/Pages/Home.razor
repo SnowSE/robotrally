@@ -26,8 +26,8 @@
                 <KidLobby Player="_player" Phase="Game.Phase" />
                 <CountdownOverlay EndsAt="Game.CountdownEndsAt" />
                 break;
-            case GamePhase.Race when _player.Finished:
-                <KidFinished Player="_player" />
+            case GamePhase.Race when _player.Finished && _player.PlayingIndex is null:
+                <KidFinished Player="_player" Celebrate="!_celebrated" OnCelebrated="() => _celebrated = true" />
                 break;
             case GamePhase.Race:
                 <KidRace Player="_player" />
@@ -45,6 +45,7 @@
     private Player? _player;
     private bool _loaded;
     private bool _full;
+    private bool _celebrated; // the big "you beat every level" party, shown once
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -80,6 +81,7 @@
             // Removed by the admin, or a new group started.
             _player = null;
             _full = false;
+            _celebrated = false;
             await ForgetToken();
         }
         StateHasChanged();

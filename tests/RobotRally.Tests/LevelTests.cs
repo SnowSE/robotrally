@@ -91,6 +91,61 @@ public class LevelTests
         Assert.Equal(RunOutcome.Success, Interpreter.Run(Levels.All[9], [Until(IfLeft(L), IfWall(R), IfWall(R), F)]).Outcome);
     }
 
+    [Theory, MemberData(nameof(LevelNumbers))]
+    public void Par_IsTheReferenceSolution_AndReferenceTakesNoStars(int n)
+    {
+        Assert.Equal(ProgramOps.Count(Levels.Solution(n)), Levels.Par(n));
+        Assert.Equal(0, Interpreter.Run(Levels.All[n - 1], Levels.Solution(n)).Stars);
+    }
+
+    [Theory, MemberData(nameof(LevelNumbers))]
+    public void StarSolution_GrabsEveryStar_WithinLimit(int n)
+    {
+        var level = Levels.All[n - 1];
+        var solution = Levels.StarSolution(n);
+        if (level.Stars.Count == 0)
+        {
+            Assert.Null(solution);
+            return;
+        }
+        var run = Interpreter.Run(level, solution!);
+        Assert.Equal(RunOutcome.Success, run.Outcome);
+        Assert.Equal(level.Stars.Count, run.Stars);
+        Assert.True(ProgramOps.Count(solution!) <= level.BlockLimit);
+        Assert.All(ProgramOps.KindsUsed(solution!), k => Assert.Contains(k, level.Toolbox));
+    }
+
+    [Fact]
+    public void MostLevels_HaveABonusStar()
+    {
+        Assert.True(Levels.All.Count(l => l.Stars.Count > 0) >= 7);
+    }
+
+    [Theory, MemberData(nameof(LevelNumbers))]
+    public void Hints_ExistForEveryLevel_AndOnlyUseToolboxBlocks(int n)
+    {
+        var hints = Levels.Hints(n);
+        Assert.Equal(3, hints.Count);
+        Assert.NotNull(hints[^1].Blocks);
+        Assert.All(ProgramOps.KindsUsed(hints[^1].Blocks!), k => Assert.Contains(k, Levels.All[n - 1].Toolbox));
+    }
+
+    [Fact]
+    public void StarCountsOncePerRun_EvenIfDrivenOverTwice()
+    {
+        var run = Interpreter.Run(Levels.All[0], [R, F, R, R, F, L, L, F, F, L, F, F]);
+        Assert.Equal(RunOutcome.Success, run.Outcome);
+        Assert.Equal(1, run.Stars);
+    }
+
+    [Fact]
+    public void Level7_TurningLeftAtWalls_IsTheLongWayWithTheStar()
+    {
+        var right = Interpreter.Run(Levels.All[6], Levels.Solution(7));
+        var left = Interpreter.Run(Levels.All[6], Levels.StarSolution(7)!);
+        Assert.True(left.Steps.Count > right.Steps.Count);
+    }
+
     [Fact]
     public void DemoLevels_ScriptedProgramsBehaveAsNarrated()
     {
@@ -98,6 +153,7 @@ public class LevelTests
         Assert.Equal(RunOutcome.Success, Interpreter.Run(Levels.DemoBasics, [F, F, R, F, F]).Outcome);
         Assert.Equal(RunOutcome.Success, Interpreter.Run(Levels.DemoRepeat, [Repeat(6, F)]).Outcome);
         Assert.Equal(RunOutcome.Success, Interpreter.Run(Levels.DemoIf, [Until(IfWall(R), F)]).Outcome);
+        Assert.Equal(1, Interpreter.Run(Levels.DemoIf, [Until(IfWall(R), F)]).Stars);
     }
 
     /// <summary>Fewest Forward/Turn blocks needed to reach the goal (BFS over position + facing).</summary>

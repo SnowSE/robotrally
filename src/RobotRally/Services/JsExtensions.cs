@@ -14,4 +14,9 @@ public static class JsExtensions
     {
         try { await js.InvokeVoidAsync("rally.confetti", count, x, y); } catch { }
     }
+
+    public static async void Fireworks(this IJSRuntime js, int bursts = 6)
+    {
+        try { await js.InvokeVoidAsync("rally.fireworks", bursts); } catch { }
+    }
 }

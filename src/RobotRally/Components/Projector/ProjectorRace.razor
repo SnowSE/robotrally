@@ -7,7 +7,18 @@
     <header class="pj-race-head">
         <h1 class="logo">Robot Rally</h1>
         <div class="race-stat">⏱ <span>@Elapsed</span></div>
-        <div class="race-stat">🏆 <span>@_players.Count(p => p.Finished)</span> finished</div>
+        @if (_players.FirstOrDefault(p => p.Score > 0) is not { } leader)
+        {
+            <div class="race-stat">🏆 <span>@_players.Count(p => p.Finished)</span> finished</div>
+        }
+        else
+        {
+            <div class="race-stat leader">
+                <CharacterIcon Look="leader.Look" Size="44" Angle="-90" />
+                <span class="leader-name">@leader.Nickname</span>
+                <span class="leader-pts">⭐ @leader.Score.ToString("N0")</span>
+            </div>
+        }
         <div class="join-mini">@Join.Display</div>
     </header>
 
@@ -109,13 +120,15 @@
             var level = Game.Levels[p.LevelIndex];
             var pose = level.StartPose;
             var status = PlayStatus.Idle;
-            if (p.CurrentRun is { } run && run.LevelIndex == p.LevelIndex)
+            var fast = false;
+            if (p.CurrentRun is { Practice: false } run && run.LevelIndex == p.LevelIndex)
             {
-                var f = Playback.Frame(run.Result, now - run.StartedAt);
+                var f = Playback.Frame(run.Result, now - run.StartedAt, run.Speed);
                 pose = f.Pose;
                 status = f.Status;
+                fast = run.Speed > 1;
             }
-            _byLevel[p.LevelIndex].Add(new BoardRacer(p.Id, p.Look, pose, status));
+            _byLevel[p.LevelIndex].Add(new BoardRacer(p.Id, p.Look, pose, status, fast));
         }
 
         // Ribbon: one column per level (plus finish), racers packed in arrival order.
@@ -136,13 +149,14 @@
             {
                 if (p.Finished && !before.Finished)
                 {
-                    AddToast(p, $"{p.Nickname} finished! 🏆", big: true, now);
+                    AddToast(p, $"{p.Nickname} beat every level! 🏆 {p.Score:N0} points", big: true, now);
                     Js.Sfx("finish");
                     Js.Confetti(220);
                 }
                 else if (p.LevelIndex > before.Level && !p.Finished)
                 {
-                    AddToast(p, $"{p.Nickname} reached level {p.LevelIndex + 1}!", big: false, now);
+                    var stars = p.LastAward?.Score.StarsTaken > 0 ? " ⭐" : "";
+                    AddToast(p, $"{p.Nickname} reached level {p.LevelIndex + 1}! +{p.LastAward?.Score.Total ?? 0}{stars}", big: false, now);
                     Js.Sfx("whoosh");
                 }
             }

@@ -26,7 +26,7 @@
 
     <PlayArea Level="_level" Program="_program" Look="DemoLooks.Racer"
               Pose="_view.Pose" Status="_view.Status" ActiveBlockId="_view.ActiveBlock" BugBlockId="_view.Bug"
-              Running="_view.Running" CanStop="_view.CanStopAt(Game.Now)" Message="@_view.Message" MessageKind="@_view.MessageKind"
+              Running="_view.Running" CanStop="_view.CanStopAt(Game.Now)" Message="@_view.Message" MessageKind="@_view.MessageKind" TakenStars="_view.TakenStars"
               OnRun="Run" OnStop="Stop" OnProgramChanged="() => _view.ClearNotes()">
         <Overlay>
             @if (_view.Celebrate)

@@ -113,7 +113,7 @@ New blocks appear in the toolbox with a "NEW!" sparkle on the level where they'r
 - All 10 levels are shown at once as mini maze tiles in a grid (5 × 2), each labeled with the level number and any newly introduced block icon. Each player's character sits on their current level's tile and **animates its runs live**: moving, crashing, celebrating. When a player advances, their character flies or drives over to the next tile.
 - A **progress ribbon** along the bottom shows every character ordered by progress.
 - When a player finishes Level 10 there's a big on-screen celebration. The first three finishers take podium spots.
-- **End Race** (admin) or 3 finishers → **podium screen**: top 3 by level reached, ties broken by who got there first, plus a "everyone who played" parade of all characters.
+- **Finish race** (admin only; see Additions) → **podium screen**: top 3 by points, then level reached, then who got there first, plus a parade of everyone else with their points.
 
 ### Lobby
 - Projector: a playful scene where each character drops or drives in when the kid finishes building it, with a pop sound and their nickname. It shows a big "Join at http://<ip>:5000" banner and a player count.
@@ -138,7 +138,16 @@ New blocks appear in the toolbox with a "NEW!" sparkle on the level where they'r
 - The precise demo script and timing.
 
 ## Stuck kids
-Adults walk the room and help in person (Jonathan's call). No hint system and no skip-ahead control. The levels just need tuning so that the early ones (1–3) are quick wins.
+Adults walk the room and help in person. There's no skip-ahead control, and the early levels (1–3) are tuned to be quick wins. Jonathan later asked for a hint button for kids in the bottom 30% of the pack: see Additions.
+
+## Additions (asked for by Jonathan after the first build)
+- **Bonus stars** (`*` in a level map) sit on optional longer routes, a "turn in the road" or the long way round. They're on levels 1–7 and 10 (8 and 9 are single winding paths). Each level ships a star route that's tested to collect every star within the block limit, and the reference solution is tested to collect none.
+- **Points:** 100 for solving a level, up to 100 for speed (par time 20 s + 10 s per level, sliding to 0 over 4 minutes, timed from reaching the level to pressing GO), up to 50 for blocks (par = reference solution, −10 per extra block), and 100 per star on a winning run. Standings and the podium rank by points.
+- **The admin ends the race.** There's no automatic podium. **Finish race & show scores** shows the podium with points, and a winning run still celebrating at that moment is credited.
+- **Lobby bumper cars:** the arrow keys drive your racer on a shared floor. Server-side physics (equal-mass discs, springy minimum bounce, glancing hits spin) run at 20 frames a second; the browser smooths the motion with CSS. Bump sound: one short soft "boop", played only on the machines of the two kids involved, never on the projector, because a whole room does this at once.
+- **🐢/🐇 Fast button:** runs play 2.5× faster (driving only; crash and celebration timing unchanged). Toggling mid-run re-times the run from where the racer is.
+- **💡 Hint button** for kids in the back 30% of the pack (by level, then points; ties don't count as behind, so no hints at the start). Three hints per level, gentlest first; the last shows how a program could start.
+- **After finishing:** a big celebration (rays, trophy, fireworks, fanfare), then a "My levels" screen with each winning program and **Play again** on any level. A replay counts only if it beats that level's best score.
 
 ## Build order (Claude's call; event date not given)
 Core first, polish layered on top:

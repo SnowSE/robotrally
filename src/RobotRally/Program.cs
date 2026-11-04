@@ -9,6 +9,9 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp => new GameService(sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<LobbyArena>();
+builder.Services.AddSingleton<ArenaHost>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ArenaHost>());
 builder.Services.AddSingleton<AdminAuth>();
 builder.Services.AddSingleton<JoinInfo>();
 if (builder.Environment.IsDevelopment())
@@ -34,6 +37,14 @@ if (app.Environment.IsDevelopment())
 {
     // Practice racers for rehearsals: http://localhost:5000/dev/bots?n=10
     app.MapGet("/dev/bots", (DevBots bots, int? n) => $"Added {bots.Add(Math.Clamp(n ?? 8, 1, 24))} practice racers.");
+    // Rehearse the finish screen: solves this racer's current level (call it again after each win).
+    app.MapGet("/dev/solve", (GameService game, string token) =>
+    {
+        if (game.Resume(token) is not { } p) return "No such racer.";
+        if (p.PlayingIndex is not { } i) return "Finished.";
+        game.SetFast(token, true);
+        return game.Run(token, Levels.Solution(i + 1)) is null ? "Can't run right now." : $"Solving level {i + 1}.";
+    });
 }
 
 app.Lifetime.ApplicationStarted.Register(() =>

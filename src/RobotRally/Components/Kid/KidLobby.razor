@@ -1,40 +1,56 @@
+@implements IAsyncDisposable
+@inject GameService Game
+@inject ArenaHost Host
 @inject IJSRuntime Js
 
-<div class="kid-lobby">
-    <h1 class="logo">Robot Rally</h1>
-    <button type="button" class="lobby-racer" @onclick="Trick" title="Do a trick!">
-        <span @key="_trickKey" class="trick-wrap @_trick">
-            <CharacterIcon Look="Player.Look" Class="bob" Size="100%" Angle="-90" />
-        </span>
-    </button>
-    <div class="nick-pill big">@Player.Nickname</div>
-    @if (Phase == GamePhase.Demo)
-    {
+@if (Phase == GamePhase.Demo)
+{
+    <div class="kid-lobby">
+        <h1 class="logo">Robot Rally</h1>
+        <div class="lobby-racer"><CharacterIcon Look="Player.Look" Class="bob" Size="100%" Angle="-90" /></div>
+        <div class="nick-pill big">@Player.Nickname</div>
         <p class="lobby-msg">👀 Look at the big screen!</p>
-    }
-    else if (Phase == GamePhase.Countdown)
-    {
-        <p class="lobby-msg">Get ready…</p>
-    }
-    else
-    {
-        <p class="lobby-msg">You're in! The race starts soon.</p>
-        <p class="lobby-hint">Click your racer to do a trick.</p>
-    }
-</div>
+    </div>
+}
+else
+{
+    <div class="kid-lobby bumper">
+        <header class="bumper-head">
+            <h1 class="logo">Robot Rally</h1>
+            <div class="bumper-me">
+                <CharacterIcon Look="Player.Look" Size="46" Angle="-90" />
+                <span class="nick-pill">@Player.Nickname</span>
+            </div>
+            <p class="lobby-msg">
+                @(Phase == GamePhase.Countdown ? "Get ready…" : "You're in! Drive around and bump your friends.")
+            </p>
+        </header>
+        <Arena Players="Game.Players" MeId="@Player.Id" Class="kid-arena" />
+        <p class="lobby-hint keys">
+            <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> drive · the race starts soon
+        </p>
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public Player Player { get; set; } = default!;
     [Parameter] public GamePhase Phase { get; set; }
 
-    private static readonly string[] Tricks = ["spin", "flip", "jump"];
-    private string _trick = "";
-    private int _trickKey;
+    private DotNetObjectReference<KidLobby>? _ref;
 
-    private void Trick()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _trick = Tricks[Random.Shared.Next(Tricks.Length)];
-        _trickKey++;
-        Js.Sfx("trick");
+        if (!firstRender) return;
+        _ref = DotNetObjectReference.Create(this);
+        try { await Js.InvokeVoidAsync("rally.drive.start", _ref); } catch { }
+    }
+
+    [JSInvokable]
+    public void Drive(int mask) => Host.Drive(Player.Id, (DriveInput)mask);
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await Js.InvokeVoidAsync("rally.drive.stop"); } catch { }
+        _ref?.Dispose();
     }
 }

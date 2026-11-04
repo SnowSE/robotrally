@@ -2,29 +2,43 @@
 @inject GameService Game
 @inject IJSRuntime Js
 
-<div class="kid-race">
+<div class="kid-race @(Practice ? "practice" : "")">
     <header class="race-bar">
         <div class="me">
             <CharacterIcon Look="Player.Look" Size="44" Angle="-90" />
             <span class="me-name">@Player.Nickname</span>
         </div>
+        @if (Practice)
+        {
+            <button type="button" class="btn btn-quiet back-btn" @onclick="Back">← My levels</button>
+        }
         <div class="level-title">
             <span class="level-num">Level @Level.Number</span>
             <span class="level-name">@Level.Name</span>
+            @if (Practice) { <span class="practice-tag">Replay</span> }
         </div>
-        <ol class="pips" aria-label="Your progress">
-            @foreach (var l in Game.Levels)
-            {
-                var i = l.Number - 1;
-                <li class="@(i < _levelIndex ? "done" : i == _levelIndex ? "now" : "")">@(i < _levelIndex ? "⭐" : l.Number.ToString())</li>
-            }
-        </ol>
+        @if (_canHint)
+        {
+            <button type="button" class="btn btn-hint" @onclick="OpenHint" title="Stuck? Get a hint">💡 Hint</button>
+        }
+        <div class="score-pill" title="Your points">⭐ <span>@Player.Score.ToString("N0")</span></div>
+        @if (!Practice)
+        {
+            <ol class="pips" aria-label="Your progress">
+                @foreach (var l in Game.Levels)
+                {
+                    var i = l.Number - 1;
+                    <li class="@(i < _levelIndex ? "done" : i == _levelIndex ? "now" : "")">@(i < _levelIndex ? "⭐" : l.Number.ToString())</li>
+                }
+            </ol>
+        }
     </header>
 
-    <PlayArea Level="Level" Program="_program" Look="Player.Look"
+    <PlayArea Level="Level" Program="_program" Look="Player.Look" NewBlocks="@(Practice ? NoBlocks : null)"
               Pose="_view.Pose" Status="_view.Status" ActiveBlockId="_view.ActiveBlock" BugBlockId="_view.Bug"
               Running="_view.Running" CanStop="_view.CanStopAt(Game.Now)"
-              Message="@_view.Message" MessageKind="@_view.MessageKind"
+              Message="@_view.Message" MessageKind="@_view.MessageKind" TakenStars="_view.TakenStars"
+              ShowFast="true" Fast="Player.Fast" OnToggleFast="ToggleFast"
               OnRun="Run" OnStop="Stop" OnProgramChanged="ProgramChanged">
         <TrackHeader>
             <p class="tagline">@Level.Tagline</p>
@@ -37,6 +51,31 @@
                     <div class="lc-text">Level @Level.Number complete!</div>
                 </div>
             }
+            @if (_award is { } a && Game.Now < _awardUntil)
+            {
+                <div @key="a" class="award-card" role="status">
+                    <div class="award-title">
+                        @if (a.Practice)
+                        {
+                            @(a.Improved ? "New best! 🎉" : $"Your best is still {a.PreviousBest:N0}")
+                        }
+                        else
+                        {
+                            @($"Level {a.Score.LevelNumber} points")
+                        }
+                    </div>
+                    <ul class="award-lines">
+                        <li style="--i:0"><span>🏁 Made it</span><b>+@a.Score.Complete</b></li>
+                        <li style="--i:1"><span>⏱ Speed</span><b>+@a.Score.Speed</b></li>
+                        <li style="--i:2"><span>🧱 Few blocks</span><b>+@a.Score.Blocks</b></li>
+                        @if (a.Score.StarsTaken > 0)
+                        {
+                            <li style="--i:3" class="star-line"><span>⭐ Bonus star@(a.Score.StarsTaken > 1 ? "s" : "")</span><b>+@a.Score.StarPoints</b></li>
+                        }
+                    </ul>
+                    <div class="award-total"><span>Total</span><b>@a.Score.Total</b></div>
+                </div>
+            }
         </Overlay>
     </PlayArea>
 
@@ -44,17 +83,53 @@
     {
         <NewBlockIntro Level="Level" OnClose="CloseIntro" />
     }
+
+    @if (_hintOpen)
+    {
+        var hints = Levels.Hints(Level.Number);
+        <div class="modal-backdrop" @onclick="CloseHint">
+            <div class="modal hint-modal" @onclick:stopPropagation="true">
+                <h2>💡 Hint</h2>
+                <ol class="hint-list">
+                    @for (var i = 0; i <= _hintIndex && i < hints.Count; i++)
+                    {
+                        var h = hints[i];
+                        <li @key="i" class="hint">
+                            <p>@h.Text</p>
+                            @if (h.Blocks is { } blocks) { <BlockChips Blocks="blocks" /> }
+                        </li>
+                    }
+                </ol>
+                <div class="hint-actions">
+                    @if (_hintIndex + 1 < hints.Count)
+                    {
+                        <button type="button" class="btn btn-demo" @onclick="MoreHint">Another hint</button>
+                    }
+                    <button type="button" class="btn btn-go" @onclick="CloseHint">Got it!</button>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     [Parameter, EditorRequired] public Player Player { get; set; } = default!;
 
+    private static readonly TimeSpan AwardTime = TimeSpan.FromSeconds(6);
+    private static readonly BlockKind[] NoBlocks = [];
+
     private RunView _view = default!;
     private List<Block> _program = [];
     private int _levelIndex = -1;
-    private bool _showIntro;
+    private bool _showIntro, _canHint, _hintOpen;
+    private int _hintIndex;
+    private Award? _award, _awardSeen;
+    private DateTimeOffset _awardUntil;
+    private bool _primed;
     private PeriodicTimer? _timer;
 
+    /// <summary>A finished racer replaying an old level (points only count if they beat their best).</summary>
+    private bool Practice => Player.Finished;
     private Level Level => Game.Levels[Math.Clamp(_levelIndex, 0, Game.Levels.Count - 1)];
 
     protected override void OnInitialized()
@@ -65,23 +140,47 @@
 
     protected override void OnParametersSet()
     {
-        if (Player.LevelIndex != _levelIndex && Player.LevelIndex < Game.Levels.Count)
+        var index = Player.PlayingIndex ?? _levelIndex;
+        if (index != _levelIndex && index >= 0 && index < Game.Levels.Count)
         {
             var first = _levelIndex < 0;
-            _levelIndex = Player.LevelIndex;
+            _levelIndex = index;
             _program = Player.CloneProgram();
             _view.Stop(Level.StartPose);
             _view.ClearNotes();
             _view.Celebrate = false;
-            _showIntro = Level.NewBlocks.Length > 0 && _program.Count == 0;
+            _hintOpen = false;
+            _hintIndex = 0;
+            _showIntro = !Practice && Level.NewBlocks.Length > 0 && _program.Count == 0;
             if (!first) Js.Sfx(_showIntro ? "newblock" : "levelup");
         }
 
+        // Points card: show each new award once (not the one already there when the page loaded).
+        if (!_primed) { _awardSeen = Player.LastAward; _primed = true; }
+        else if (Player.LastAward is { } award && !ReferenceEquals(award, _awardSeen))
+        {
+            _awardSeen = _award = award;
+            _awardUntil = Game.Now + AwardTime;
+            Js.Sfx("points");
+        }
+
         var run = Player.CurrentRun;
-        if (run is not null && !ReferenceEquals(_view.Anim.Tag, run) && run.LevelIndex == _levelIndex)
-            _view.Begin(run.Result, run.StartedAt, run); // e.g. page refreshed mid-run
+        if (run is not null && run.LevelIndex == _levelIndex && !ReferenceEquals(_view.Anim.Tag, run))
+        {
+            if (_view.Anim.Tag is ActiveRun shown && shown.Id == run.Id)
+                _view.Retime(run.StartedAt, run.Speed, run); // 🐇 toggled mid-run
+            else
+                _view.Begin(run.Result, run.StartedAt, run, run.Speed); // e.g. page refreshed mid-run
+        }
         else if (run is null && _view.Running)
+        {
             _view.Stop(Level.StartPose); // the server finished or stopped the run
+            _view.Celebrate = false;
+        }
+
+        var could = _canHint;
+        _canHint = !Practice && Game.IsAtBackOfPack(Player) && Levels.Hints(Level.Number).Count > 0;
+        if (_canHint && !could) Js.Sfx("hint");
     }
 
     private async Task Loop()
@@ -92,7 +191,12 @@
             while (await _timer.WaitForNextTickAsync())
                 await InvokeAsync(() =>
                 {
-                    try { if (_view.Update(Game.Now, Level.StartPose, autoClear: false)) StateHasChanged(); }
+                    try
+                    {
+                        var changed = _view.Update(Game.Now, Level.StartPose, autoClear: false);
+                        if (_award is not null && Game.Now >= _awardUntil) { _award = null; changed = true; }
+                        if (changed) StateHasChanged();
+                    }
                     catch (Exception ex) when (ex is not ObjectDisposedException) { /* keep ticking */ }
                 });
         }
@@ -115,7 +219,8 @@
             _view.Say("Hmm, that program can't run right now. Ask a grown-up!");
             return;
         }
-        _view.Begin(run.Result, run.StartedAt, run);
+        _award = null;
+        _view.Begin(run.Result, run.StartedAt, run, run.Speed);
         _view.Update(Game.Now, Level.StartPose, autoClear: false);
     }
 
@@ -125,6 +230,13 @@
         Game.StopRun(Player.Token);
         _view.Stop(Level.StartPose);
         Js.Sfx("click");
+    }
+
+    private void ToggleFast()
+    {
+        var fast = !Player.Fast;
+        Game.SetFast(Player.Token, fast);
+        Js.Sfx(fast ? "fast" : "slow");
     }
 
     private void ProgramChanged()
@@ -137,6 +249,30 @@
     {
         _showIntro = false;
         Js.Sfx("click");
+    }
+
+    private void OpenHint()
+    {
+        _hintOpen = true;
+        Js.Sfx("hint");
+    }
+
+    private void MoreHint()
+    {
+        _hintIndex++;
+        Js.Sfx("hint");
+    }
+
+    private void CloseHint()
+    {
+        _hintOpen = false;
+        Js.Sfx("click");
+    }
+
+    private void Back()
+    {
+        Js.Sfx("click");
+        Game.EndPractice(Player.Token);
     }
 
     public void Dispose() => _timer?.Dispose();

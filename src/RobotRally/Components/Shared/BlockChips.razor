@@ -1,0 +1,29 @@
+@* A read-only picture of a program (hints, saved solutions). *@
+<div class="chips @Class">
+    @Render(Blocks)
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<Block> Blocks { get; set; } = [];
+    [Parameter] public string? Class { get; set; }
+
+    private RenderFragment Render(IReadOnlyList<Block> list) => __builder =>
+    {
+        @foreach (var b in list)
+        {
+            <div class="chip-block cat-@b.Kind.Category()">
+                <div class="chip-head">
+                    <span>@b.Kind.Icon()</span>
+                    <span>@b.Kind.Label()@(b.Kind == BlockKind.Repeat ? $" {b.Count} times" : "")</span>
+                </div>
+                @if (b.IsContainer)
+                {
+                    <div class="chip-body">
+                        @if (b.Body.Count == 0) { <span class="chip-empty">…</span> }
+                        else { @Render(b.Body) }
+                    </div>
+                }
+            </div>
+        }
+    };
+}

@@ -51,9 +51,20 @@
         <path class="flag-cloth" d="M-20 -44 Q2 -52 26 -42 Q16 -30 26 -16 Q2 -26 -20 -18 Z" fill="url(#chk-@_id)" stroke="#1d1d2b" stroke-width="3" />
     </g>
 
+    @foreach (var (stx, sty) in Level.Stars)
+    {
+        var taken = TakenStars?.Contains((stx, sty)) == true;
+        <g @key="(stx, sty)" class="bonus-star @(taken ? "taken" : "")" style="transform: translate(@(stx * 100 + 50)px, @(sty * 100 + 50)px)">
+            <g class="bonus-star-bob">
+                <circle r="34" class="bonus-star-glow" />
+                <path d="M0 -30 L8.8 -12.1 L28.5 -9.3 L14.3 4.6 L17.6 24.3 L0 15 L-17.6 24.3 L-14.3 4.6 L-28.5 -9.3 L-8.8 -12.1 Z" class="bonus-star-shape" />
+            </g>
+        </g>
+    }
+
     @foreach (var r in _views)
     {
-        <g @key="r.Racer.Key" class="racer s-@r.Racer.Status.ToString().ToLowerInvariant() @(r.Teleport ? "teleport" : "")"
+        <g @key="r.Racer.Key" class="racer s-@r.Racer.Status.ToString().ToLowerInvariant() @(r.Teleport ? "teleport" : "") @(r.Racer.Fast ? "fast" : "")"
            style="transform: translate(@(r.X)px, @(r.Y)px)">
             <g class="racer-rot" style="transform: rotate(@(r.Angle)deg) scale(@r.Scale)">
                 <g class="racer-fx">
@@ -72,6 +83,8 @@
     [Parameter] public IReadOnlyList<BoardRacer> Racers { get; set; } = [];
     /// <summary>Spread racers that share a cell (projector view).</summary>
     [Parameter] public bool Crowd { get; set; }
+    /// <summary>Stars already picked up in the run being shown (drawn popping away).</summary>
+    [Parameter] public IReadOnlySet<(int X, int Y)>? TakenStars { get; set; }
     [Parameter] public string? Class { get; set; }
 
     private readonly string _id = Guid.NewGuid().ToString("N")[..6];

@@ -101,7 +101,7 @@ public class GameServiceTests
     {
         var p = Join();
         StartRace();
-        Assert.Null(_game.Run(p.Token, [F, F, F, F, F, F, F])); // level 1 limit 6
+        Assert.Null(_game.Run(p.Token, [F, F, F, F, F, F, F, F])); // level 1 limit 7
         Assert.Null(_game.Run(p.Token, [Repeat(2, F)]));        // Repeat not offered on level 1
     }
 
@@ -148,19 +148,19 @@ public class GameServiceTests
     }
 
     [Fact]
-    public void FinishingAllLevels_FinishesPlayer_AndPodiumFollowsWhenEveryoneDone()
+    public void FinishingAllLevels_FinishesPlayer_ButOnlyTheAdminEndsTheRace()
     {
         var p = Join();
         StartRace();
         for (var i = 0; i < Levels.All.Count; i++) Solve(p);
         Assert.True(p.Finished);
+        Assert.Null(p.PlayingIndex);
+        _time.Advance(TimeSpan.FromMinutes(5));
         Assert.Equal(GamePhase.Race, _game.Phase);
-        _time.Advance(GameService.PodiumDelay);
-        Assert.Equal(GamePhase.Podium, _game.Phase);
     }
 
     [Fact]
-    public void Standings_FinishersFirst_ThenLevel_ThenWhoGotThereFirst()
+    public void Standings_MostPoints_ThenLevel_ThenWhoGotThereFirst()
     {
         var a = Join(); var b = Join(); var c = Join(); var d = Join();
         StartRace();
@@ -192,8 +192,140 @@ public class GameServiceTests
         _time.Advance(Playback.Duration(run.Result));
         Assert.Same(p, _game.Resume(p.Token));
         Assert.Equal(0, p.LevelIndex);
+        Assert.Equal(0, p.Score);
+        Assert.Empty(p.Best);
         Assert.Null(p.CurrentRun);
         Assert.Equal(GamePhase.Lobby, _game.Phase);
+    }
+
+    [Fact]
+    public void SolvingALevel_BanksPoints_AndShowsTheAward()
+    {
+        var p = Join();
+        StartRace();
+        _time.Advance(TimeSpan.FromSeconds(5));
+        Solve(p);
+        var score = p.Best[0];
+        Assert.Equal(Scoring.CompletePoints + Scoring.MaxSpeedPoints + Scoring.MaxBlockPoints, score.Total);
+        Assert.Equal(score.Total, p.Score);
+        Assert.Same(score, p.LastAward!.Score);
+        Assert.False(p.LastAward.Practice);
+    }
+
+    [Fact]
+    public void BonusStar_IsWorthPoints_OnlyWhenTheRunWins()
+    {
+        var p = Join();
+        StartRace();
+        var crash = _game.Run(p.Token, [R, F, F, F])!; // grabs the star, then hits a hedge
+        Assert.Equal(1, crash.Result.Stars);
+        Assert.Null(crash.Award);
+        _time.Advance(Playback.Duration(crash.Result));
+        Assert.Equal(0, p.Score);
+
+        var run = _game.Run(p.Token, Levels.StarSolution(1)!)!;
+        _time.Advance(Playback.Duration(run.Result));
+        Assert.Equal(1, p.Best[0].StarsTaken);
+        Assert.Equal(Scoring.PointsPerStar, p.Best[0].StarPoints);
+        Assert.Equal(Scoring.MaxBlockPoints - Scoring.PointsPerExtraBlock, p.Best[0].Blocks); // one block over par
+    }
+
+    [Fact]
+    public void FastMode_PlaysRunsFaster()
+    {
+        var p = Join();
+        StartRace();
+        _game.SetFast(p.Token, true);
+        var run = _game.Run(p.Token, Levels.Solution(1))!;
+        Assert.Equal(Playback.FastSpeed, run.Speed);
+        _time.Advance(Playback.Duration(run.Result, Playback.FastSpeed));
+        Assert.Equal(1, p.LevelIndex);
+    }
+
+    [Fact]
+    public void FastMode_ChangedMidRun_RetimesFromWhereTheRacerIs()
+    {
+        var p = Join();
+        StartRace();
+        var run = _game.Run(p.Token, Levels.Solution(1))!;
+        _time.Advance(Playback.StepTime * 2);
+        _game.SetFast(p.Token, true);
+        var fast = p.CurrentRun!;
+        Assert.Equal(run.Id, fast.Id);
+        Assert.Equal(2, Playback.Frame(fast.Result, _game.Now - fast.StartedAt, fast.Speed).StepIndex);
+
+        // Slowing back down: the earlier (fast) timer must not end the run early.
+        _game.SetFast(p.Token, false);
+        _time.Advance(Playback.Duration(run.Result, Playback.FastSpeed));
+        Assert.Equal(0, p.LevelIndex);
+        _time.Advance(Playback.Duration(run.Result));
+        Assert.Equal(1, p.LevelIndex);
+    }
+
+    [Fact]
+    public void Finished_PlayerCanReplayLevels_BestScoreKept()
+    {
+        var p = Join();
+        StartRace();
+        for (var i = 0; i < Levels.All.Count; i++) Solve(p);
+        var total = p.Score;
+        var level1 = p.Best[0].Total;
+
+        Assert.True(_game.StartPractice(p.Token, 0));
+        Assert.Equal(0, p.PlayingIndex);
+        Assert.Equal(ProgramOps.Count(Levels.Solution(1)), ProgramOps.Count(p.CloneProgram())); // their winning program is loaded
+
+        // Slower and no star: not better, so nothing changes.
+        _time.Advance(TimeSpan.FromMinutes(10));
+        var slow = _game.Run(p.Token, Levels.Solution(1))!;
+        _time.Advance(Playback.Duration(slow.Result));
+        Assert.Equal(total, p.Score);
+        Assert.False(p.LastAward!.Improved);
+
+        // Grabbing the star beats it.
+        _game.StartPractice(p.Token, 0);
+        var star = _game.Run(p.Token, Levels.StarSolution(1)!)!;
+        _time.Advance(Playback.Duration(star.Result));
+        Assert.True(p.LastAward!.Improved);
+        Assert.True(p.Best[0].Total > level1);
+        Assert.Equal(total - level1 + p.Best[0].Total, p.Score);
+        Assert.Equal(Levels.All.Count, p.LevelIndex);
+        Assert.Equal(6, ProgramOps.Count(p.CloneSolution(0)!));
+
+        _game.EndPractice(p.Token);
+        Assert.Null(p.PlayingIndex);
+        Assert.Null(_game.Run(p.Token, [F]));
+    }
+
+    [Fact]
+    public void StartPractice_OnlyForFinishers()
+    {
+        var p = Join();
+        StartRace();
+        Assert.False(_game.StartPractice(p.Token, 0));
+    }
+
+    [Fact]
+    public void Hints_GoToTheBackOfThePack_NotAtTheStart()
+    {
+        var players = Enumerable.Range(0, 10).Select(_ => Join()).ToList();
+        StartRace();
+        Assert.All(players, p => Assert.False(_game.IsAtBackOfPack(p))); // everyone tied
+
+        foreach (var p in players.Take(7)) Solve(p);
+        Assert.All(players.Take(7), p => Assert.False(_game.IsAtBackOfPack(p)));
+        Assert.All(players.Skip(7), p => Assert.True(_game.IsAtBackOfPack(p)));
+    }
+
+    [Fact]
+    public void EndRace_CreditsAWinningRunThatIsStillCelebrating()
+    {
+        var p = Join();
+        StartRace();
+        _game.Run(p.Token, Levels.Solution(1));
+        _game.EndRace();
+        Assert.Equal(1, p.LevelIndex);
+        Assert.True(p.Score > 0);
     }
 
     [Fact]

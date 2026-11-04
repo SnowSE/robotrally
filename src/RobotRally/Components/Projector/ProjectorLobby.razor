@@ -12,14 +12,8 @@
         </div>
     </header>
 
-    <div class="parking">
-        @foreach (var p in _players)
-        {
-            <div @key="p.Id" class="parked">
-                <CharacterIcon Look="p.Look" Size="120" Angle="-90" Class="bob" />
-                <span class="nick-pill">@p.Nickname</span>
-            </div>
-        }
+    <div class="pj-arena-wrap">
+        <Arena Players="_players" Class="pj-arena" />
         @if (_players.Count == 0)
         {
             <p class="pj-empty">Racers show up here when they join.</p>
@@ -27,7 +21,7 @@
     </div>
 
     <footer class="pj-count">
-        <span class="count-num">@_players.Count</span> @(_players.Count == 1 ? "racer" : "racers") ready
+        <span class="count-num">@_players.Count</span> @(_players.Count == 1 ? "racer" : "racers") ready · drive with the arrow keys!
     </footer>
 </div>
 

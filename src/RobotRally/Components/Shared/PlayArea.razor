@@ -13,6 +13,13 @@
                 {
                     <button type="button" class="btn btn-go @(PulseGo ? "pulse" : "")" @onclick="OnRun">▶ GO!</button>
                 }
+                @if (ShowFast)
+                {
+                    <button type="button" class="btn btn-fast @(Fast ? "on" : "")" @onclick="OnToggleFast" aria-pressed="@(Fast ? "true" : "false")"
+                            title="@(Fast ? "Fast is on: your racer zooms. Click for normal speed." : "Make your racer go faster")">
+                        @(Fast ? "🐇" : "🐢")<span class="fast-label">@(Fast ? "Fast" : "Normal")</span>
+                    </button>
+                }
                 <button type="button" class="btn btn-clear" @onclick="Clear" disabled="@(!Demo && (Running || Program.Count == 0))" title="Throw away all blocks">🧹</button>
             </div>
         </Footer>
@@ -28,7 +35,7 @@
             @TrackHeader
         }
         <div class="track-board @(PulseBoard ? "pulse-board" : "")">
-            <Board Level="Level" Racers="_racers" />
+            <Board Level="Level" Racers="_racers" TakenStars="TakenStars" />
             @Overlay
         </div>
     </section>
@@ -59,6 +66,11 @@
     [Parameter] public EventCallback OnStop { get; set; }
     [Parameter] public EventCallback OnProgramChanged { get; set; }
     [Parameter] public RenderFragment? TrackHeader { get; set; }
+    [Parameter] public IReadOnlySet<(int X, int Y)>? TakenStars { get; set; }
+    /// <summary>Show the 🐢/🐇 speed toggle (kid screens).</summary>
+    [Parameter] public bool ShowFast { get; set; }
+    [Parameter] public bool Fast { get; set; }
+    [Parameter] public EventCallback OnToggleFast { get; set; }
     [Parameter] public RenderFragment? Overlay { get; set; }
 
     public ProgramEditor? Editor { get; private set; }
@@ -67,7 +79,7 @@
 
     protected override void OnParametersSet()
     {
-        _racers = [new BoardRacer("me", Look, Pose ?? Level.StartPose, Status)];
+        _racers = [new BoardRacer("me", Look, Pose ?? Level.StartPose, Status, Fast && Running)];
     }
 
     private async Task Clear()

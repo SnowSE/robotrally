@@ -5,10 +5,14 @@ public enum StepAction { Move, TurnLeft, TurnRight, Crash, Goal }
 public enum RunOutcome { Success, Crash, OutOfBlocks, StepLimit }
 
 /// <summary>One animated step. <see cref="Pose"/> is where the robot is after the step
-/// (for <see cref="StepAction.Crash"/> it stays put and bumps the wall).</summary>
-public readonly record struct Step(Pose Pose, StepAction Action, Guid BlockId);
+/// (for <see cref="StepAction.Crash"/> it stays put and bumps the wall). <see cref="Star"/> marks picking up a bonus star.</summary>
+public readonly record struct Step(Pose Pose, StepAction Action, Guid BlockId, bool Star = false);
 
-public sealed record RunResult(IReadOnlyList<Step> Steps, RunOutcome Outcome, Pose Start);
+public sealed record RunResult(IReadOnlyList<Step> Steps, RunOutcome Outcome, Pose Start)
+{
+    /// <summary>Bonus stars picked up on the way (they only count if the run reaches the flag).</summary>
+    public int Stars => Steps.Count(s => s.Star);
+}
 
 public static class Interpreter
 {
@@ -41,6 +45,7 @@ public static class Interpreter
         public List<Step> Steps { get; } = [];
         private Pose _pose = level.StartPose;
         private int _evaluations;
+        private readonly HashSet<(int, int)> _stars = [];
 
         public void Exec(IReadOnlyList<Block> blocks)
         {
@@ -56,7 +61,8 @@ public static class Interpreter
         {
             if (Steps.Count >= MaxActions) throw new Stop(RunOutcome.StepLimit);
             _pose = next;
-            Steps.Add(new Step(next, action, id));
+            var star = action == StepAction.Move && level.IsStar(next.X, next.Y) && _stars.Add((next.X, next.Y));
+            Steps.Add(new Step(next, action, id, star));
         }
 
         private bool WallAt(Pose p) => level.IsWall(p.X, p.Y);

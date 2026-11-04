@@ -1,7 +1,7 @@
 namespace RobotRally.Game;
 
 /// <summary>
-/// A grid maze. Map chars: '#' wall, '.' floor, 'S' start (floor), 'G' goal. Off-grid counts as wall.
+/// A grid maze. Map chars: '#' wall, '.' floor, 'S' start (floor), 'G' goal, '*' bonus star (floor). Off-grid counts as wall.
 /// </summary>
 public sealed class Level
 {
@@ -20,6 +20,7 @@ public sealed class Level
         Tagline = tagline ?? "";
         Start = Find('S') ?? throw new ArgumentException($"Level {number} has no start.");
         Goal = Find('G') ?? throw new ArgumentException($"Level {number} has no goal.");
+        Stars = [.. Enumerable.Range(0, Height).SelectMany(y => Enumerable.Range(0, Width).Where(x => map[y][x] == '*').Select(x => (x, y)))];
     }
 
     public int Number { get; }
@@ -33,12 +34,15 @@ public sealed class Level
     public string Tagline { get; }
     public (int X, int Y) Start { get; }
     public (int X, int Y) Goal { get; }
+    /// <summary>Bonus stars: optional prizes, usually off the shortest route.</summary>
+    public IReadOnlyList<(int X, int Y)> Stars { get; }
     public int Width => Map[0].Length;
     public int Height => Map.Length;
     public Pose StartPose => new(Start.X, Start.Y, StartDir);
 
     public bool IsWall(int x, int y) => x < 0 || y < 0 || x >= Width || y >= Height || Map[y][x] == '#';
     public bool IsGoal(int x, int y) => (x, y) == Goal;
+    public bool IsStar(int x, int y) => !IsWall(x, y) && Map[y][x] == '*';
 
     private (int, int)? Find(char c)
     {

@@ -81,6 +81,20 @@ window.rally = (() => {
       seq([[N.C5, .14, 0], [N.C5, .14, .15], [N.C5, .14, .3], [N.E5, .45, .45], [N.D5, .14, .95], [N.E5, .14, 1.1], [N.G5, .9, 1.25]], { type: 'square', vol: 0.06 });
       seq([[N.C4, .5, .45], [N.G4, .9, 1.25]], { type: 'triangle', vol: 0.08 });
     },
+    star: () => { tone(N.E5 * 2, 0.08, { type: 'triangle', vol: 0.12 }); tone(N.A5 * 2, 0.22, { type: 'triangle', vol: 0.12, delay: 0.07 }); tone(N.E5 * 4, 0.12, { type: 'sine', vol: 0.04, delay: 0.12 }); },
+    // Bumper cars: short and soft, because a whole room will be doing it at once.
+    boop: () => tone(330 + Math.random() * 90, 0.09, { type: 'sine', to: 170, vol: 0.09 }),
+    hint: () => seq([[N.E5, .09, 0], [N.A5, .2, .09]], { type: 'sine', vol: 0.12 }),
+    fast: () => tone(500, 0.12, { type: 'triangle', to: 1400, vol: 0.1 }),
+    slow: () => tone(900, 0.14, { type: 'triangle', to: 380, vol: 0.1 }),
+    points: () => { for (let i = 0; i < 5; i++) tone(900 + i * 140, 0.05, { type: 'square', vol: 0.035, delay: i * 0.06 }); },
+    champion: () => {
+      sounds.finish();
+      const fan = [[N.G5, .12], [N.G5, .12], [N.G5, .12], [N.C6, .6]];
+      let t = 2.3;
+      fan.forEach(([f, d]) => { tone(f, d, { type: 'square', vol: 0.06, delay: t }); tone(f / 2, d, { type: 'triangle', vol: 0.07, delay: t }); t += d + 0.02; });
+      for (let i = 0; i < 6; i++) noise(0.4, { vol: 0.05, freq: 2500, to: 300, delay: 0.4 + i * 0.55 });
+    },
     podium: () => {
       const m = [[N.G4, .15], [N.C5, .15], [N.E5, .15], [N.G5, .3], [N.E5, .15], [N.G5, .6],
                  [N.A4, .15], [N.D5, .15], [N.F5, .15], [N.A5, .3], [N.F5, .15], [N.A5, .6],
@@ -142,6 +156,158 @@ window.rally = (() => {
   document.addEventListener('drop', endDrag, true);
   document.addEventListener('dragend', endDrag, true);
 
+  // A bigger show: several bursts from different spots.
+  function fireworks(bursts = 6) {
+    for (let i = 0; i < bursts; i++) {
+      setTimeout(() => confetti(90, 0.15 + Math.random() * 0.7, 0.2 + Math.random() * 0.4), i * 450);
+    }
+  }
+
+  // ---------- lobby bumper cars ----------
+  // The server sends ~20 frames a second, each stamped with the arena clock. Every screen refresh we draw the
+  // cars a little in the past (DELAY), blending between the two frames on either side of that moment. That keeps
+  // motion smooth even when frames arrive unevenly. (CSS transitions can't do this: every new frame restarts them,
+  // which makes the car stop-start about 20 times a second.)
+  // Blazor owns the car elements (one per racer, data-id); this only moves them and plays the bump effects.
+  const arena = (() => {
+    const W = 1600;
+    const DELAY = 0.09;        // seconds behind the newest frame: covers one late frame
+    const KEEP = 12;           // frames kept per board
+    const boards = new Map();  // element -> state
+    let looping = false;
+
+    function attach(el, me, sound) {
+      if (!el) return;
+      const st = { me, sound: !!sound, scale: 1, lastBoop: 0, cars: new Map(), snaps: [], offset: null, offsets: [] };
+      boards.set(el, st);
+      const measure = () => {
+        st.scale = el.clientWidth / W;
+        el.style.setProperty('--arena-scale', st.scale.toFixed(4));
+      };
+      measure();
+      st.ro = new ResizeObserver(measure);
+      st.ro.observe(el);
+      if (!looping) { looping = true; requestAnimationFrame(loop); }
+    }
+    function detach(el) {
+      const st = el && boards.get(el);
+      if (st) { st.ro?.disconnect(); boards.delete(el); }
+    }
+    function car(el, st, id) {
+      let c = st.cars.get(id);
+      if (!c || !c.isConnected) {
+        c = el.querySelector(`.arena-car[data-id="${CSS.escape(id)}"]`);
+        if (c) st.cars.set(id, c);
+      }
+      return c;
+    }
+
+    function frame(el, f) {
+      const st = el && boards.get(el);
+      if (!st || !f) return;
+      const now = performance.now() / 1000;
+      // Map arena time to local time with the smallest recent (arrival - arena time): the least-delayed frame.
+      // A big change means the arena was parked and resumed (its clock paused), so start over.
+      const off = now - f.t;
+      if (st.offset !== null && Math.abs(off - st.offset) > 0.5) { st.offsets = []; st.snaps = []; }
+      st.offsets.push(off);
+      if (st.offsets.length > 40) st.offsets.shift();
+      st.offset = Math.min(...st.offsets);
+      const cars = new Map();
+      for (const [id, x, y, angle] of f.cars) cars.set(id, [x, y, angle]);
+      const last = st.snaps[st.snaps.length - 1];
+      if (last && f.t <= last.t) last.cars = cars; // same moment (e.g. a parked arena re-sent): just refresh it
+      else st.snaps.push({ t: f.t, cars });
+      if (st.snaps.length > KEEP) st.snaps.shift();
+
+      // Bump effects wait for the drawing to catch up, so the 💥 lands when the cars visibly touch.
+      if (f.bumps?.length) setTimeout(() => bumps(el, st, f.bumps), DELAY * 1000);
+    }
+
+    function bumps(el, st, list) {
+      if (!el.isConnected) return;
+      for (const [a, b, x, y, strength] of list) {
+        const pow = document.createElement('div');
+        pow.className = 'arena-pow' + (strength > 400 ? ' big' : '');
+        pow.style.transform = `translate(${(x * st.scale).toFixed(1)}px, ${(y * st.scale).toFixed(1)}px)`;
+        el.appendChild(pow);
+        setTimeout(() => pow.remove(), 600);
+        for (const id of [a, b]) {
+          const fx = car(el, st, id)?.querySelector('.arena-fx');
+          if (fx) { fx.classList.remove('bonk'); void fx.offsetWidth; fx.classList.add('bonk'); }
+        }
+        const now = performance.now();
+        if (st.sound && (a === st.me || b === st.me) && now - st.lastBoop > 180) {
+          st.lastBoop = now;
+          sfx('boop');
+        }
+      }
+    }
+
+    function draw(el, st, now) {
+      const snaps = st.snaps;
+      if (!snaps.length) return;
+      const t = Math.max(snaps[0].t, Math.min(snaps[snaps.length - 1].t, now - st.offset - DELAY));
+      let i = snaps.length - 1;
+      while (i > 0 && snaps[i - 1].t > t) i--;
+      const a = snaps[Math.max(0, i - 1)], b = snaps[i];
+      const k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 1;
+      for (const [id, pb] of b.cars) {
+        const c = car(el, st, id);
+        if (!c) continue;
+        const pa = a.cars.get(id) || pb;
+        const x = pa[0] + (pb[0] - pa[0]) * k, y = pa[1] + (pb[1] - pa[1]) * k, ang = pa[2] + (pb[2] - pa[2]) * k;
+        c.style.transform = `translate(${(x * st.scale).toFixed(1)}px, ${(y * st.scale).toFixed(1)}px)`;
+        const rot = c.firstElementChild;
+        if (rot) rot.style.transform = `rotate(${ang.toFixed(1)}deg)`;
+        if (!c.classList.contains('placed')) c.classList.add('placed');
+      }
+    }
+
+    function loop() {
+      if (!boards.size) { looping = false; return; }
+      const now = performance.now() / 1000;
+      for (const [el, st] of boards) {
+        if (!el.isConnected) { detach(el); continue; }
+        draw(el, st, now);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    return { attach, detach, frame };
+  })();
+
+  // Arrow keys (or WASD) → a 4-bit mask sent to the server only when it changes.
+  const drive = (() => {
+    const bits = { ArrowUp: 1, KeyW: 1, ArrowDown: 2, KeyS: 2, ArrowLeft: 4, KeyA: 4, ArrowRight: 8, KeyD: 8 };
+    let ref = null, mask = 0;
+    const send = m => {
+      if (m === mask) return;
+      mask = m;
+      ref?.invokeMethodAsync('Drive', m).catch(() => { });
+    };
+    const down = e => {
+      const b = bits[e.code];
+      if (!ref || !b || e.target?.closest?.('input, textarea, select')) return;
+      e.preventDefault();
+      send(mask | b);
+    };
+    const up = e => {
+      const b = bits[e.code];
+      if (!ref || !b) return;
+      send(mask & ~b);
+    };
+    const release = () => send(0);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', release);
+    document.addEventListener('visibilitychange', release);
+    return {
+      start: r => { ref = r; mask = 0; },
+      stop: () => { release(); ref = null; },
+    };
+  })();
+
   // ---------- projector stage scaling ----------
   function fitStage() {
     const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
@@ -168,5 +334,5 @@ window.rally = (() => {
   function listenKeys(ref) { keyRef = ref; }
   function stopKeys() { keyRef = null; }
 
-  return { store, sfx, setMuted, isMuted, confetti, listenKeys, stopKeys, fitStage };
+  return { store, sfx, setMuted, isMuted, confetti, fireworks, arena, drive, listenKeys, stopKeys, fitStage };
 })();

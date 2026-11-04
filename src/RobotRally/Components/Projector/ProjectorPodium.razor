@@ -8,25 +8,26 @@
         @foreach (var (p, place) in Order())
         {
             <div class="podium-spot place-@place">
-                <div class="podium-racer"><CharacterIcon Look="p.Look" Size="190" Angle="-90" Class="dance" /></div>
+                <div class="podium-racer"><CharacterIcon Look="p.Look" Size="160" Angle="-90" Class="dance" /></div>
                 <span class="nick-pill big">@p.Nickname</span>
-                <span class="podium-detail">@(p.Finished ? "Finished all levels" : $"Reached level {p.LevelIndex + 1}")</span>
+                <span class="podium-score">⭐ @p.Score.ToString("N0")</span>
+                <span class="podium-detail">@(p.Finished ? "Beat every level" : $"Reached level {p.LevelIndex + 1}")</span>
                 <div class="podium-block">@place</div>
             </div>
         }
     </div>
-    @if (_rest.Count > 0)
-    {
-        <div class="parade">
-            @foreach (var p in _rest)
-            {
-                <div class="parade-racer">
-                    <CharacterIcon Look="p.Look" Size="70" Angle="-90" Class="bob" />
-                    <span class="nick-pill small">@p.Nickname</span>
-                </div>
-            }
-        </div>
-    }
+    @* Always present so the thanks line stays in the bottom row of the grid. *@
+    <div class="parade">
+        @foreach (var (p, i) in _rest.Select((p, i) => (p, i)))
+        {
+            <div class="parade-racer" style="animation-delay: @(1.2 + i * 0.05)s">
+                <span class="parade-place">@(i + 4)</span>
+                <CharacterIcon Look="p.Look" Size="40" Angle="-90" />
+                <span class="nick-pill small">@p.Nickname</span>
+                <span class="parade-pts">⭐ @p.Score.ToString("N0")</span>
+            </div>
+        }
+    </div>
     <p class="pj-thanks">Great job, programmers! Every crash was a bug you found and fixed.</p>
 </div>
 

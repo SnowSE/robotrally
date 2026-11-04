@@ -11,9 +11,41 @@ public static class Playback
     public static readonly TimeSpan FailTime = TimeSpan.FromMilliseconds(1500);
     public static readonly TimeSpan SuccessTime = TimeSpan.FromMilliseconds(2200);
 
+    /// <summary>How much faster the 🐇 button plays a run.</summary>
+    public const double FastSpeed = 2.5;
+
     public static TimeSpan ResultTime(RunResult run) => run.Outcome == RunOutcome.Success ? SuccessTime : FailTime;
 
-    public static TimeSpan Duration(RunResult run) => StepTime * run.Steps.Count + ResultTime(run);
+    private static TimeSpan StepsTime(RunResult run) => StepTime * run.Steps.Count;
+
+    /// <summary>Real time a run takes at a speed. Speed only shortens the driving, not the crash or celebration.</summary>
+    public static TimeSpan Duration(RunResult run, double speed = 1) => StepsTime(run) / speed + ResultTime(run);
+
+    /// <summary>Real elapsed time → position on the normal-speed timeline.</summary>
+    public static TimeSpan Position(RunResult run, TimeSpan elapsed, double speed)
+    {
+        var driving = StepsTime(run) / speed;
+        return elapsed < driving ? elapsed * speed : StepsTime(run) + (elapsed - driving);
+    }
+
+    /// <summary>Inverse of <see cref="Position"/>: how long it takes at a speed to reach a timeline position.</summary>
+    public static TimeSpan ElapsedFor(RunResult run, TimeSpan position, double speed) =>
+        position < StepsTime(run) ? position / speed : StepsTime(run) / speed + (position - StepsTime(run));
+
+    public static PlaybackFrame Frame(RunResult run, TimeSpan elapsed, double speed) => Frame(run, Position(run, elapsed, speed));
+
+    /// <summary>Stars already picked up when the playback is at <paramref name="frame"/>.</summary>
+    public static IReadOnlySet<(int X, int Y)> StarsTaken(RunResult run, PlaybackFrame frame)
+    {
+        if (frame.Done && run.Outcome != RunOutcome.Success) return EmptyStars;
+        HashSet<(int, int)>? taken = null;
+        var last = Math.Min(frame.StepIndex, run.Steps.Count - 1);
+        for (var i = 0; i <= last; i++)
+            if (run.Steps[i].Star) (taken ??= []).Add((run.Steps[i].Pose.X, run.Steps[i].Pose.Y));
+        return taken ?? EmptyStars;
+    }
+
+    public static readonly IReadOnlySet<(int X, int Y)> EmptyStars = new HashSet<(int, int)>();
 
     public static PlaybackFrame Frame(RunResult run, TimeSpan elapsed)
     {

@@ -10,7 +10,7 @@
 
     <PlayArea @ref="_area" Demo="true" Level="_level" Program="_program" Look="DemoLooks.Racer"
               Pose="_view.Pose" Status="_view.Status" ActiveBlockId="_view.ActiveBlock" BugBlockId="_view.Bug"
-              Running="_view.Running" Message="@_view.Message" MessageKind="@_view.MessageKind"
+              Running="_view.Running" Message="@_view.Message" MessageKind="@_view.MessageKind" TakenStars="_view.TakenStars"
               PulseBlock="_pulse" PulseGo="_pulseGo" PulseBoard="_pulseBoard">
         <Overlay>
             @if (_view.Celebrate)
@@ -166,6 +166,12 @@
 
             Say("Watch it decide when to turn!");
             await RunNow(ct);
+            Say("It grabbed a ⭐ bonus star on the way! Stars are worth extra points. Sometimes you have to take the long way to get one.");
+            await WaitNext(ct);
+
+            Say("You also get points for finishing fast and for using fewer blocks. The 🐢 button makes your racer zoom like a 🐇!");
+            await WaitNext(ct);
+
             Say("If you crash, find the bug, fix it, and try again. Ready to race? 🏁");
             _waiting = false;
             Render();
