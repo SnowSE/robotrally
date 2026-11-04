@@ -1,0 +1,20 @@
+@inject IJSRuntime Js
+
+<button type="button" class="mute-btn" @onclick="Toggle" title="@(_muted ? "Turn sound on" : "Turn sound off")">@(_muted ? "🔇" : "🔊")</button>
+
+@code {
+    private bool _muted;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _muted = await Js.InvokeAsync<bool>("rally.isMuted"); StateHasChanged(); } catch { }
+    }
+
+    private async Task Toggle()
+    {
+        _muted = !_muted;
+        try { await Js.InvokeVoidAsync("rally.setMuted", _muted); } catch { }
+        if (!_muted) Js.Sfx("pop");
+    }
+}

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RobotRally.Game/RobotRally.Game.csproj" />
+    <Project Path="src/RobotRally/RobotRally.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RobotRally.Tests/RobotRally.Tests.csproj" />
+  </Folder>
+</Solution>

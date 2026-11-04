@@ -1,0 +1,243 @@
+@implements IDisposable
+@inject GameService Game
+@inject IJSRuntime Js
+
+<div class="pj-demo scripted">
+    <div class="caption-bar">
+        <p @key="_captionKey" class="caption">@_caption</p>
+        <span class="next-hint @(_waiting ? "on" : "")">Space ▶</span>
+    </div>
+
+    <PlayArea @ref="_area" Demo="true" Level="_level" Program="_program" Look="DemoLooks.Racer"
+              Pose="_view.Pose" Status="_view.Status" ActiveBlockId="_view.ActiveBlock" BugBlockId="_view.Bug"
+              Running="_view.Running" Message="@_view.Message" MessageKind="@_view.MessageKind"
+              PulseBlock="_pulse" PulseGo="_pulseGo" PulseBoard="_pulseBoard">
+        <Overlay>
+            @if (_view.Celebrate)
+            {
+                <div class="level-complete"><div class="lc-star">⭐</div><div class="lc-text">You made it!</div></div>
+            }
+        </Overlay>
+    </PlayArea>
+</div>
+
+@code {
+    private RunView _view = default!;
+    private PlayArea? _area;
+    private Level _level = Levels.DemoBasics;
+    private List<Block> _program = [];
+    private string _caption = "";
+    private int _captionKey;
+    private bool _waiting, _pulseGo, _pulseBoard;
+    private BlockKind? _pulse;
+    private CancellationTokenSource _cts = new();
+    private TaskCompletionSource? _next;
+    private PeriodicTimer? _timer;
+
+    protected override void OnInitialized()
+    {
+        _view = new RunView(Js);
+        _ = Loop();
+        _ = Script(_cts.Token);
+    }
+
+    /// <summary>Presenter pressed Space / →.</summary>
+    public void Next()
+    {
+        if (!_disposed) _next?.TrySetResult();
+    }
+
+    /// <summary>Presenter pressed ←: start over.</summary>
+    public void Restart()
+    {
+        if (_disposed) return;
+        _cts.Cancel();
+        _cts = new CancellationTokenSource();
+        _ = Script(_cts.Token);
+    }
+
+    private async Task Loop()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync())
+                await InvokeAsync(() =>
+                {
+                    try { if (_view.Update(Game.Now, _level.StartPose, autoClear: true)) StateHasChanged(); }
+                    catch (Exception ex) when (ex is not ObjectDisposedException) { }
+                });
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task Script(CancellationToken ct)
+    {
+        try
+        {
+            // --- Basics: build, run, crash, fix ---
+            SetLevel(Levels.DemoBasics);
+            Say("Meet your racer! Your job is to drive it to the 🏁 flag.");
+            _pulseBoard = true;
+            await WaitNext(ct);
+            _pulseBoard = false;
+
+            Say("These are blocks. Each block is one instruction for your racer.");
+            foreach (var k in _level.Toolbox)
+            {
+                _pulse = k;
+                Render();
+                await Wait(900, ct);
+            }
+            _pulse = null;
+            await WaitNext(ct);
+
+            Say("Drag blocks into your program. The racer will do them in order, top to bottom.");
+            await Add(BlockKind.Forward, ct);
+            await Add(BlockKind.Forward, ct);
+            var oops = await Add(BlockKind.Forward, ct);
+            await WaitNext(ct);
+
+            Say("Press GO! to run the program.");
+            await RunNow(ct);
+            Say("Bonk! 💥 That's a bug. The third Forward drives into the hedge. Programmers find and fix bugs all the time!");
+            await WaitNext(ct);
+
+            Say("The racer goes back to the start, so we can fix the program. Throw away the buggy block and add a turn.");
+            _view.ClearNotes();
+            ProgramOps.Remove(_program, oops.Id);
+            Js.Sfx("trash");
+            Render();
+            await Wait(800, ct);
+            await Add(BlockKind.TurnRight, ct);
+            await Add(BlockKind.Forward, ct);
+            await Add(BlockKind.Forward, ct);
+            await WaitNext(ct);
+
+            Say("Let's try again!");
+            await RunNow(ct);
+            Say("We made it! 🎉 Reach the flag and you go on to the next level.");
+            await WaitNext(ct);
+
+            // --- Block limit + Repeat ---
+            SetLevel(Levels.DemoRepeat);
+            Say("Later levels have a block limit. Watch the 🧱 counter at the top of the program.");
+            await Add(BlockKind.Forward, ct);
+            await Add(BlockKind.Forward, ct);
+            await Add(BlockKind.Forward, ct);
+            await Wait(500, ct);
+            _pulse = BlockKind.Forward;
+            Render();
+            await Wait(600, ct);
+            _area?.Editor?.Deny();
+            _pulse = null;
+            Say("Uh oh, the program is full and we're only halfway there! We need a shortcut.");
+            await WaitNext(ct);
+
+            Say("🔁 Repeat does the blocks inside it again and again. Use + and − to pick how many times.");
+            _program.Clear();
+            Js.Sfx("trash");
+            Render();
+            await Wait(600, ct);
+            var repeat = await Add(BlockKind.Repeat, ct);
+            await Add(BlockKind.Forward, ct, repeat.Body);
+            for (var n = repeat.Count; n < 6; n++)
+            {
+                repeat.Count++;
+                Js.Sfx("click");
+                Render();
+                await Wait(450, ct);
+            }
+            await WaitNext(ct);
+
+            Say("Two blocks instead of six. GO!");
+            await RunNow(ct);
+            Say("A Repeat is called a loop. Loops save you lots of blocks!");
+            await WaitNext(ct);
+
+            // --- If ---
+            SetLevel(Levels.DemoIf);
+            Say("If blocks let your racer decide things, like “if there's a wall ahead, turn right.”");
+            var until = await Add(BlockKind.RepeatUntilGoal, ct);
+            var check = await Add(BlockKind.IfWallAhead, ct, until.Body);
+            await Add(BlockKind.TurnRight, ct, check.Body);
+            await Add(BlockKind.Forward, ct, until.Body);
+            await WaitNext(ct);
+
+            Say("Watch it decide when to turn!");
+            await RunNow(ct);
+            Say("If you crash, find the bug, fix it, and try again. Ready to race? 🏁");
+            _waiting = false;
+            Render();
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void SetLevel(Level level)
+    {
+        _level = level;
+        _program = [];
+        _pulse = null;
+        _pulseGo = _pulseBoard = false;
+        _view.Stop(level.StartPose);
+        _view.ClearNotes();
+        _view.Celebrate = false;
+        Render();
+    }
+
+    private void Say(string caption)
+    {
+        _caption = caption;
+        _captionKey++;
+        Render();
+    }
+
+    private void Render() => StateHasChanged();
+
+    private static Task Wait(int ms, CancellationToken ct) => Task.Delay(ms, ct);
+
+    private async Task WaitNext(CancellationToken ct)
+    {
+        _waiting = true;
+        _next = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Render();
+        await _next.Task.WaitAsync(ct);
+        _waiting = false;
+        Render();
+    }
+
+    private async Task<Block> Add(BlockKind kind, CancellationToken ct, List<Block>? into = null)
+    {
+        _pulse = kind;
+        Render();
+        await Wait(650, ct);
+        var block = new Block { Kind = kind };
+        (into ?? _program).Add(block);
+        _pulse = null;
+        Js.Sfx("drop");
+        Render();
+        await Wait(500, ct);
+        return block;
+    }
+
+    private async Task RunNow(CancellationToken ct)
+    {
+        _pulseGo = true;
+        Render();
+        await Wait(800, ct);
+        _pulseGo = false;
+        _view.Begin(Interpreter.Run(_level, _program), Game.Now);
+        Render();
+        while (_view.Running) await Wait(50, ct);
+        await Wait(300, ct);
+    }
+
+    private bool _disposed;
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _cts.Cancel();
+        _timer?.Dispose();
+    }
+}

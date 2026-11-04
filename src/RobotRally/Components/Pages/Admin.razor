@@ -1,0 +1,127 @@
+@page "/admin"
+@implements IDisposable
+@inject GameService Game
+@inject AdminAuth Auth
+@inject IJSRuntime Js
+
+<PageTitle>Robot Rally · Projector</PageTitle>
+
+@if (!_checked)
+{
+    <div class="splash">🏁</div>
+}
+else if (!_authed)
+{
+    <div class="login">
+        <form class="login-card" @onsubmit="Login">
+            <h1 class="logo">Robot Rally</h1>
+            <label for="pw">Projector password</label>
+            <input id="pw" type="password" @bind="_password" autofocus autocomplete="current-password" />
+            @if (_bad) { <p class="login-bad">That password didn't work.</p> }
+            <button type="submit" class="btn btn-go">Open projector</button>
+        </form>
+    </div>
+}
+else
+{
+    <div class="projector">
+        <Stage>
+            @switch (Game.Phase)
+            {
+                case GamePhase.Lobby:
+                    <ProjectorLobby />
+                    break;
+                case GamePhase.Demo when Game.Demo == DemoMode.Scripted:
+                    <ScriptedDemo @ref="_scripted" />
+                    break;
+                case GamePhase.Demo:
+                    <LiveDemo />
+                    break;
+                case GamePhase.Countdown:
+                    <ProjectorLobby />
+                    <CountdownOverlay EndsAt="Game.CountdownEndsAt" />
+                    break;
+                case GamePhase.Race:
+                    <ProjectorRace />
+                    break;
+                case GamePhase.Podium:
+                    <ProjectorPodium />
+                    break;
+            }
+        </Stage>
+        <button type="button" class="drawer-toggle" @onclick="() => _drawer = !_drawer" title="Controls (Esc)">⚙️</button>
+        <AdminDrawer Open="_drawer" OnClose="() => _drawer = false" OnDemoNext="DemoNext" OnDemoRestart="DemoRestart" />
+    </div>
+}
+
+@code {
+    private const string TokenKey = "rr-admin";
+    private bool _checked, _authed, _bad, _drawer;
+    private string _password = "";
+    private ScriptedDemo? _scripted;
+    private DotNetObjectReference<Admin>? _ref;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        string? token = null;
+        try { token = await Js.InvokeAsync<string?>("rally.store.get", TokenKey); } catch { }
+        _authed = Auth.IsValid(token);
+        _checked = true;
+        if (_authed) await Start();
+        StateHasChanged();
+    }
+
+    private async Task Login()
+    {
+        var token = Auth.Login(_password);
+        if (token is null)
+        {
+            _bad = true;
+            Js.Sfx("deny");
+            return;
+        }
+        _authed = true;
+        _bad = false;
+        _password = "";
+        try { await Js.InvokeVoidAsync("rally.store.set", TokenKey, token); } catch { }
+        Js.Sfx("pop");
+        await Start();
+    }
+
+    private bool _started, _disposed;
+
+    private async Task Start()
+    {
+        if (_started || _disposed) return;
+        _started = true;
+        Game.Changed += OnGameChanged;
+        _ref = DotNetObjectReference.Create(this);
+        try { await Js.InvokeVoidAsync("rally.listenKeys", _ref); } catch { }
+    }
+
+    private void OnGameChanged() => _ = InvokeAsync(StateHasChanged);
+
+    [JSInvokable]
+    public Task OnKey(string key) => InvokeAsync(() =>
+    {
+        switch (key)
+        {
+            case "Escape": _drawer = !_drawer; break;
+            case " " or "ArrowRight" or "PageDown": DemoNext(); break;
+            case "ArrowLeft" or "PageUp": DemoRestart(); break;
+        }
+        StateHasChanged();
+    });
+
+    private bool ScriptedShowing => Game.Phase == GamePhase.Demo && Game.Demo == DemoMode.Scripted;
+    private void DemoNext() { if (ScriptedShowing) _scripted?.Next(); }
+    private void DemoRestart() { if (ScriptedShowing) _scripted?.Restart(); }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Game.Changed -= OnGameChanged;
+        _ref?.Dispose();
+    }
+}

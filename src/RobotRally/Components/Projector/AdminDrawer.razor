@@ -1,0 +1,128 @@
+@inject GameService Game
+@inject JoinInfo Join
+
+<aside class="drawer @(Open ? "open" : "")" aria-hidden="@(Open ? "false" : "true")">
+    <header class="drawer-head">
+        <h2>Controls</h2>
+        <button type="button" class="drawer-close" @onclick="OnClose" title="Hide (Esc)">✖</button>
+    </header>
+
+    <p class="drawer-phase">Now showing: <strong>@PhaseLabel</strong></p>
+
+    <div class="drawer-actions">
+        @switch (Game.Phase)
+        {
+            case GamePhase.Lobby:
+                <button type="button" class="btn btn-demo" @onclick="() => Act(() => Game.StartDemo(DemoMode.Scripted))">▶ Play demo</button>
+                <button type="button" class="btn btn-demo" @onclick="() => Act(() => Game.StartDemo(DemoMode.Live))">🎮 Live demo</button>
+                <button type="button" class="btn btn-go" @onclick="() => Act(Game.StartRace)">🏁 Start race</button>
+                break;
+            case GamePhase.Demo:
+                @if (Game.Demo == DemoMode.Scripted)
+                {
+                    <button type="button" class="btn btn-demo" @onclick="OnDemoNext">Next step (Space)</button>
+                    <button type="button" class="btn btn-demo" @onclick="OnDemoRestart">Restart demo (←)</button>
+                    <button type="button" class="btn btn-demo" @onclick="() => Act(() => Game.StartDemo(DemoMode.Live))">🎮 Switch to live demo</button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-demo" @onclick="() => Act(() => Game.StartDemo(DemoMode.Scripted))">▶ Switch to scripted demo</button>
+                }
+                <button type="button" class="btn btn-quiet" @onclick="() => Act(Game.BackToLobby)">Back to lobby</button>
+                <button type="button" class="btn btn-go" @onclick="() => Act(Game.StartRace)">🏁 Start race</button>
+                break;
+            case GamePhase.Countdown:
+                <p class="drawer-note">Starting…</p>
+                break;
+            case GamePhase.Race:
+                <button type="button" class="btn btn-stop" @onclick="() => Act(Game.EndRace)">🏆 End race and show winners</button>
+                break;
+            case GamePhase.Podium:
+                <button type="button" class="btn btn-demo" @onclick="() => Act(Game.RaceAgain)">🔁 Same kids race again</button>
+                break;
+        }
+
+        @if (_confirmReset)
+        {
+            <div class="confirm">
+                <p>Remove every racer and start fresh for a new group?</p>
+                <button type="button" class="btn btn-stop" @onclick="Reset">Yes, new group</button>
+                <button type="button" class="btn btn-quiet" @onclick="() => _confirmReset = false">Cancel</button>
+            </div>
+        }
+        else
+        {
+            <button type="button" class="btn btn-quiet" @onclick="() => _confirmReset = true">🔄 New group (reset)</button>
+        }
+    </div>
+
+    <section class="drawer-join">
+        <h3>Kids go to</h3>
+        @foreach (var url in Join.Urls)
+        {
+            <code>@url</code>
+        }
+    </section>
+
+    <section class="drawer-players">
+        <h3>Racers (@Game.Players.Count / @GameService.MaxPlayers)</h3>
+        <ul>
+            @foreach (var p in Game.Standings())
+            {
+                var player = p;
+                <li>
+                    <CharacterIcon Look="player.Look" Size="32" Angle="-90" />
+                    <span class="dp-name">@player.Nickname</span>
+                    <span class="dp-level">@(player.Finished ? "🏆" : $"L{player.LevelIndex + 1}") · @player.Crashes 💥</span>
+                    @if (_confirmRemove == player.Id)
+                    {
+                        <button type="button" class="dp-remove sure" @onclick="() => Remove(player.Id)">Remove?</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="dp-remove" title="Remove this racer" @onclick="() => _confirmRemove = player.Id">✖</button>
+                    }
+                </li>
+            }
+        </ul>
+    </section>
+
+    <p class="drawer-keys">Esc: show or hide controls · Space or →: next demo step · F: full screen</p>
+</aside>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnDemoNext { get; set; }
+    [Parameter] public EventCallback OnDemoRestart { get; set; }
+
+    private bool _confirmReset;
+    private string? _confirmRemove;
+
+    private string PhaseLabel => Game.Phase switch
+    {
+        GamePhase.Lobby => "Lobby",
+        GamePhase.Demo => Game.Demo == DemoMode.Scripted ? "Scripted demo" : "Live demo",
+        GamePhase.Countdown => "Countdown",
+        GamePhase.Race => "Race",
+        _ => "Winners",
+    };
+
+    private async Task Act(Action action)
+    {
+        action();
+        await OnClose.InvokeAsync();
+    }
+
+    private void Reset()
+    {
+        Game.Reset();
+        _confirmReset = false;
+    }
+
+    private void Remove(string id)
+    {
+        Game.Remove(id);
+        _confirmRemove = null;
+    }
+}

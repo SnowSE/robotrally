@@ -1,0 +1,143 @@
+@implements IDisposable
+@inject GameService Game
+@inject IJSRuntime Js
+
+<div class="kid-race">
+    <header class="race-bar">
+        <div class="me">
+            <CharacterIcon Look="Player.Look" Size="44" Angle="-90" />
+            <span class="me-name">@Player.Nickname</span>
+        </div>
+        <div class="level-title">
+            <span class="level-num">Level @Level.Number</span>
+            <span class="level-name">@Level.Name</span>
+        </div>
+        <ol class="pips" aria-label="Your progress">
+            @foreach (var l in Game.Levels)
+            {
+                var i = l.Number - 1;
+                <li class="@(i < _levelIndex ? "done" : i == _levelIndex ? "now" : "")">@(i < _levelIndex ? "⭐" : l.Number.ToString())</li>
+            }
+        </ol>
+    </header>
+
+    <PlayArea Level="Level" Program="_program" Look="Player.Look"
+              Pose="_view.Pose" Status="_view.Status" ActiveBlockId="_view.ActiveBlock" BugBlockId="_view.Bug"
+              Running="_view.Running" CanStop="_view.CanStopAt(Game.Now)"
+              Message="@_view.Message" MessageKind="@_view.MessageKind"
+              OnRun="Run" OnStop="Stop" OnProgramChanged="ProgramChanged">
+        <TrackHeader>
+            <p class="tagline">@Level.Tagline</p>
+        </TrackHeader>
+        <Overlay>
+            @if (_view.Celebrate)
+            {
+                <div class="level-complete">
+                    <div class="lc-star">⭐</div>
+                    <div class="lc-text">Level @Level.Number complete!</div>
+                </div>
+            }
+        </Overlay>
+    </PlayArea>
+
+    @if (_showIntro)
+    {
+        <NewBlockIntro Level="Level" OnClose="CloseIntro" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Player Player { get; set; } = default!;
+
+    private RunView _view = default!;
+    private List<Block> _program = [];
+    private int _levelIndex = -1;
+    private bool _showIntro;
+    private PeriodicTimer? _timer;
+
+    private Level Level => Game.Levels[Math.Clamp(_levelIndex, 0, Game.Levels.Count - 1)];
+
+    protected override void OnInitialized()
+    {
+        _view = new RunView(Js);
+        _ = Loop();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Player.LevelIndex != _levelIndex && Player.LevelIndex < Game.Levels.Count)
+        {
+            var first = _levelIndex < 0;
+            _levelIndex = Player.LevelIndex;
+            _program = Player.CloneProgram();
+            _view.Stop(Level.StartPose);
+            _view.ClearNotes();
+            _view.Celebrate = false;
+            _showIntro = Level.NewBlocks.Length > 0 && _program.Count == 0;
+            if (!first) Js.Sfx(_showIntro ? "newblock" : "levelup");
+        }
+
+        var run = Player.CurrentRun;
+        if (run is not null && !ReferenceEquals(_view.Anim.Tag, run) && run.LevelIndex == _levelIndex)
+            _view.Begin(run.Result, run.StartedAt, run); // e.g. page refreshed mid-run
+        else if (run is null && _view.Running)
+            _view.Stop(Level.StartPose); // the server finished or stopped the run
+    }
+
+    private async Task Loop()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync())
+                await InvokeAsync(() =>
+                {
+                    try { if (_view.Update(Game.Now, Level.StartPose, autoClear: false)) StateHasChanged(); }
+                    catch (Exception ex) when (ex is not ObjectDisposedException) { /* keep ticking */ }
+                });
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void Run()
+    {
+        if (_view.Running) return; // a double-clicked GO
+        if (_program.Count == 0)
+        {
+            Js.Sfx("deny");
+            _view.Say("Drag some blocks into your program first!");
+            return;
+        }
+        var run = Game.Run(Player.Token, _program);
+        if (run is null)
+        {
+            Js.Sfx("deny");
+            _view.Say("Hmm, that program can't run right now. Ask a grown-up!");
+            return;
+        }
+        _view.Begin(run.Result, run.StartedAt, run);
+        _view.Update(Game.Now, Level.StartPose, autoClear: false);
+    }
+
+    private void Stop()
+    {
+        if (!_view.CanStopAt(Game.Now)) return;
+        Game.StopRun(Player.Token);
+        _view.Stop(Level.StartPose);
+        Js.Sfx("click");
+    }
+
+    private void ProgramChanged()
+    {
+        _view.ClearNotes();
+        Game.SaveProgram(Player.Token, _program, _levelIndex);
+    }
+
+    private void CloseIntro()
+    {
+        _showIntro = false;
+        Js.Sfx("click");
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

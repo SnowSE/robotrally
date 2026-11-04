@@ -1,0 +1,144 @@
+@* A level drawn as a little race track: asphalt road, grass hedges for walls, curbs, start box and checkered goal. *@
+<svg class="board @Class" viewBox="-24 -24 @(Level.Width * 100 + 48) @(Level.Height * 100 + 48)" preserveAspectRatio="xMidYMid meet" role="img" aria-label="@Level.Name">
+    <defs>
+        <pattern id="chk-@_id" width="25" height="25" patternUnits="userSpaceOnUse">
+            <rect width="25" height="25" fill="#fff" />
+            <rect width="12.5" height="12.5" fill="#1d1d2b" />
+            <rect x="12.5" y="12.5" width="12.5" height="12.5" fill="#1d1d2b" />
+        </pattern>
+    </defs>
+    <rect x="-24" y="-24" width="@(Level.Width * 100 + 48)" height="@(Level.Height * 100 + 48)" rx="36" class="board-turf" />
+
+    @for (var y = 0; y < Level.Height; y++)
+    {
+        @for (var x = 0; x < Level.Width; x++)
+        {
+            var px = x * 100; var py = y * 100;
+            if (Level.IsWall(x, y))
+            {
+                var v = (x * 7 + y * 13) % 4;
+                <g class="hedge">
+                    <circle cx="@(px + 30 + v * 4)" cy="@(py + 34)" r="20" />
+                    <circle cx="@(px + 66)" cy="@(py + 40 + v * 3)" r="22" />
+                    <circle cx="@(px + 44)" cy="@(py + 68)" r="21" />
+                    @if (v == 1) { <circle class="flower" cx="@(px + 62)" cy="@(py + 30)" r="5" /> }
+                    @if (v == 3) { <circle class="flower f2" cx="@(px + 34)" cy="@(py + 64)" r="5" /> }
+                </g>
+            }
+            else
+            {
+                <rect class="road" x="@px" y="@py" width="100" height="100" />
+            }
+        }
+    }
+
+    @* curbs where road meets hedge *@
+    @foreach (var (x1, y1, x2, y2) in _curbs)
+    {
+        <line class="curb" x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
+        <line class="curb-stripe" x1="@x1" y1="@y1" x2="@x2" y2="@y2" />
+    }
+
+    @{
+        var (sx, sy) = Level.Start;
+        var (gx, gy) = Level.Goal;
+    }
+    <rect class="start-box" x="@(sx * 100 + 10)" y="@(sy * 100 + 10)" width="80" height="80" rx="10" />
+    <rect x="@(gx * 100 + 8)" y="@(gy * 100 + 8)" width="84" height="84" rx="14" class="goal-tile" />
+    <circle cx="@(gx * 100 + 50)" cy="@(gy * 100 + 50)" r="30" class="goal-ring" />
+    <g class="goal-flag" style="transform: translate(@(gx * 100 + 50)px, @(gy * 100 + 50)px)">
+        <line x1="-22" y1="34" x2="-22" y2="-44" stroke="#2d3047" stroke-width="6" stroke-linecap="round" />
+        <path class="flag-cloth" d="M-20 -44 Q2 -52 26 -42 Q16 -30 26 -16 Q2 -26 -20 -18 Z" fill="url(#chk-@_id)" stroke="#1d1d2b" stroke-width="3" />
+    </g>
+
+    @foreach (var r in _views)
+    {
+        <g @key="r.Racer.Key" class="racer s-@r.Racer.Status.ToString().ToLowerInvariant() @(r.Teleport ? "teleport" : "")"
+           style="transform: translate(@(r.X)px, @(r.Y)px)">
+            <g class="racer-rot" style="transform: rotate(@(r.Angle)deg) scale(@r.Scale)">
+                <g class="racer-fx">
+                    <g class="racer-shadow"><ellipse cx="0" cy="6" rx="40" ry="34" /></g>
+                    <g transform="translate(-45 -45) scale(.9)">
+                        <CharacterArt Look="r.Racer.Look" />
+                    </g>
+                </g>
+            </g>
+        </g>
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public Level Level { get; set; } = default!;
+    [Parameter] public IReadOnlyList<BoardRacer> Racers { get; set; } = [];
+    /// <summary>Spread racers that share a cell (projector view).</summary>
+    [Parameter] public bool Crowd { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private readonly string _id = Guid.NewGuid().ToString("N")[..6];
+    private readonly Dictionary<string, (Pose Pose, double Angle)> _state = new();
+    private List<View> _views = [];
+    private List<(int, int, int, int)> _curbs = [];
+    private Level? _curbLevel;
+
+    private sealed record View(BoardRacer Racer, double X, double Y, double Angle, double Scale, bool Teleport);
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_curbLevel, Level))
+        {
+            _curbLevel = Level;
+            _curbs = ComputeCurbs(Level);
+            _state.Clear();
+        }
+
+        var views = new List<View>(Racers.Count);
+        var groups = Crowd
+            ? Racers.GroupBy(r => (r.Pose.X, r.Pose.Y)).ToDictionary(g => g.Key, g => g.OrderBy(r => r.Key).ToList())
+            : null;
+
+        foreach (var r in Racers)
+        {
+            double ox = 0, oy = 0, scale = 1;
+            if (groups is not null && groups[(r.Pose.X, r.Pose.Y)] is { Count: > 1 } group)
+            {
+                var k = group.IndexOf(r);
+                var a = 2 * Math.PI * k / group.Count;
+                var radius = group.Count > 6 ? 30 : 22;
+                ox = Math.Cos(a) * radius;
+                oy = Math.Sin(a) * radius;
+                scale = group.Count > 6 ? 0.5 : 0.65;
+            }
+
+            var target = r.Pose.Dir.Degrees();
+            var teleport = false;
+            double angle = target;
+            if (_state.TryGetValue(r.Key, out var prev))
+            {
+                teleport = Math.Abs(prev.Pose.X - r.Pose.X) + Math.Abs(prev.Pose.Y - r.Pose.Y) > 1;
+                var delta = ((target - prev.Angle) % 360 + 540) % 360 - 180;
+                angle = teleport ? target : prev.Angle + delta;
+            }
+            _state[r.Key] = (r.Pose, angle);
+            views.Add(new View(r, r.Pose.X * 100 + 50 + ox, r.Pose.Y * 100 + 50 + oy, angle, scale, teleport));
+        }
+
+        foreach (var gone in _state.Keys.Except(Racers.Select(r => r.Key)).ToList()) _state.Remove(gone);
+        _views = views;
+    }
+
+    private static List<(int, int, int, int)> ComputeCurbs(Level level)
+    {
+        var curbs = new List<(int, int, int, int)>();
+        for (var y = 0; y < level.Height; y++)
+            for (var x = 0; x < level.Width; x++)
+            {
+                if (level.IsWall(x, y)) continue;
+                int px = x * 100, py = y * 100;
+                if (level.IsWall(x, y - 1)) curbs.Add((px, py + 4, px + 100, py + 4));
+                if (level.IsWall(x, y + 1)) curbs.Add((px, py + 96, px + 100, py + 96));
+                if (level.IsWall(x - 1, y)) curbs.Add((px + 4, py, px + 4, py + 100));
+                if (level.IsWall(x + 1, y)) curbs.Add((px + 96, py, px + 96, py + 100));
+            }
+        return curbs;
+    }
+}

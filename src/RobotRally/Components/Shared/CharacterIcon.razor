@@ -1,0 +1,16 @@
+@* A standalone racer picture for HTML contexts (lobby, builder, ribbon, podium). *@
+<svg class="char-icon @Class" viewBox="-6 -6 112 112" width="@Size" height="@Size" aria-label="@Label" role="img" style="@Style">
+    <g style="transform: rotate(@(Angle)deg); transform-origin: 50px 50px;">
+        <CharacterArt Look="Look" />
+    </g>
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public CharacterLook Look { get; set; } = CharacterLook.Default;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Size { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Style { get; set; }
+    /// <summary>Rotation in degrees (art faces right by default; -90 = facing up).</summary>
+    [Parameter] public int Angle { get; set; }
+}

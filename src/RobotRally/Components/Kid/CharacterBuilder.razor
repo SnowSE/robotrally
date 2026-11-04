@@ -1,0 +1,115 @@
+@inject GameService Game
+@inject IJSRuntime Js
+
+<div class="builder">
+    <header class="builder-head">
+        <h1 class="logo">Robot Rally</h1>
+        <p class="builder-sub">Build your racer!</p>
+    </header>
+
+    <div class="builder-grid">
+        <section class="preview-card">
+            <div class="preview-spot">
+                <div @key="_popKey" class="preview-pop">
+                    <CharacterIcon Look="_look" Class="bob" Size="100%" Angle="-90" />
+                </div>
+            </div>
+            <div class="nickname">
+                <span class="nick-pill big">@_nick</span>
+                <button type="button" class="reroll" @onclick="Reroll" title="Get a different name">🎲</button>
+            </div>
+            @if (Full)
+            {
+                <p class="full-msg">Sorry, the race is full! Ask a grown-up for help.</p>
+            }
+            else
+            {
+                <button type="button" class="btn btn-go big ready" @onclick="Ready">I'm ready! 🏁</button>
+            }
+        </section>
+
+        <section class="choices">
+            <h2 class="step-title"><span class="step-num">1</span> Pick your ride</h2>
+            <div class="base-grid">
+                @foreach (var b in Characters.Bases)
+                {
+                    var info = b;
+                    <button type="button" class="choice base-choice @(info.Kind == _look.Base ? "on" : "")" @onclick="() => PickBase(info.Kind)">
+                        <CharacterIcon Look="@(new CharacterLook(info.Kind, _look.Color, []))" Size="76" Angle="-90" />
+                        <span>@info.Name</span>
+                    </button>
+                }
+            </div>
+
+            <h2 class="step-title"><span class="step-num">2</span> Add cool stuff</h2>
+            <div class="addon-grid">
+                @foreach (var a in Characters.Info(_look.Base).AddOns)
+                {
+                    var addOn = a;
+                    var on = _look.Has(addOn.Id);
+                    <button type="button" class="choice addon-choice @(on ? "on" : "")" @onclick="() => Toggle(addOn.Id)" aria-pressed="@(on ? "true" : "false")">
+                        <span class="addon-emoji">@addOn.Emoji</span>
+                        <span>@addOn.Name</span>
+                        <span class="check">@(on ? "✓" : "+")</span>
+                    </button>
+                }
+            </div>
+
+            <h2 class="step-title"><span class="step-num">3</span> Pick a color</h2>
+            <div class="color-row">
+                @foreach (var color in Characters.Colors)
+                {
+                    var c = color;
+                    <button type="button" class="swatch @(c == _look.Color ? "on" : "")" style="--swatch: @c" title="Pick this color" @onclick="() => PickColor(c)"></button>
+                }
+            </div>
+        </section>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback<(CharacterLook, string)> OnReady { get; set; }
+    [Parameter] public bool Full { get; set; }
+
+    private CharacterLook _look = CharacterLook.Default;
+    private string _nick = "";
+    private int _popKey;
+
+    protected override void OnInitialized()
+    {
+        var rng = Random.Shared;
+        _look = new CharacterLook(Characters.Bases[rng.Next(Characters.Bases.Count)].Kind, Characters.Colors[rng.Next(Characters.Colors.Count)], []);
+        _nick = Game.SuggestNickname();
+    }
+
+    private void PickBase(BaseKind kind)
+    {
+        if (kind == _look.Base) return;
+        _look = _look with { Base = kind, AddOns = [] };
+        _popKey++;
+        Js.Sfx("pop");
+    }
+
+    private void Toggle(string id)
+    {
+        var list = _look.AddOns.ToList();
+        if (!list.Remove(id)) list.Add(id);
+        _look = _look with { AddOns = list };
+        _popKey++;
+        Js.Sfx(list.Contains(id) ? "drop" : "click");
+    }
+
+    private void PickColor(string color)
+    {
+        _look = _look with { Color = color };
+        Js.Sfx("click");
+    }
+
+    private void Reroll()
+    {
+        _nick = Game.SuggestNickname();
+        Js.Sfx("trick");
+    }
+
+    private Task Ready() => OnReady.InvokeAsync((_look, _nick));
+}

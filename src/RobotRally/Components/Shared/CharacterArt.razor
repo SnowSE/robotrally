@@ -1,0 +1,213 @@
+@* A racer drawn top-down in a 100×100 box, facing East (right). Render inside an <svg> or <g>. *@
+@{
+    var c = Look.Color;
+    const string ink = "#1d1d2b";
+}
+@switch (Look.Base)
+{
+    case BaseKind.Car:
+        <g class="art art-car">
+            <rect x="22" y="19" width="16" height="10" rx="3" fill="#222" />
+            <rect x="62" y="19" width="16" height="10" rx="3" fill="#222" />
+            <rect x="22" y="71" width="16" height="10" rx="3" fill="#222" />
+            <rect x="62" y="71" width="16" height="10" rx="3" fill="#222" />
+            @if (Look.Has("spoiler"))
+            {
+                <rect x="14" y="40" width="8" height="20" fill="#2d3047" />
+                <rect x="6" y="20" width="10" height="60" rx="4" fill="#2d3047" stroke="@ink" stroke-width="2" />
+            }
+            <path d="M18 38 Q18 26 32 26 L70 26 Q88 28 91 50 Q88 72 70 74 L32 74 Q18 74 18 62 Z" fill="@c" stroke="@ink" stroke-width="3" />
+            @if (Look.Has("stripes"))
+            {
+                <rect x="20" y="43" width="69" height="5" fill="#fff" />
+                <rect x="20" y="52" width="69" height="5" fill="#fff" />
+            }
+            @if (Look.Has("flames"))
+            {
+                <path d="M88 50 Q78 32 62 35 Q70 40 58 43 Q66 47 52 50 Q66 53 58 57 Q70 60 62 65 Q78 68 88 50 Z" fill="#ff8a1f" />
+                <path d="M86 50 Q78 39 68 40 Q72 45 63 50 Q72 55 68 60 Q78 61 86 50 Z" fill="#ffcf2e" />
+            }
+            <rect x="47" y="33" width="15" height="34" rx="6" fill="#bfe9ff" stroke="@ink" stroke-width="2" />
+            <rect x="30" y="35" width="12" height="30" rx="5" fill="#8fd0f0" stroke="@ink" stroke-width="2" />
+            @if (Look.Has("siren"))
+            {
+                <rect class="siren-red" x="37" y="41" width="11" height="9" rx="3" fill="#ef3b3b" stroke="@ink" stroke-width="1.5" />
+                <rect class="siren-blue" x="37" y="50" width="11" height="9" rx="3" fill="#2f7cf6" stroke="@ink" stroke-width="1.5" />
+            }
+            <circle cx="85" cy="38" r="4.5" fill="#fff6a8" stroke="@ink" stroke-width="1.5" />
+            <circle cx="85" cy="62" r="4.5" fill="#fff6a8" stroke="@ink" stroke-width="1.5" />
+        </g>
+        break;
+
+    case BaseKind.Motorcycle:
+        <g class="art art-moto">
+            @if (Look.Has("exhaust"))
+            {
+                <path class="flicker" d="M20 44 Q2 38 0 50 Q2 62 20 56 Z" fill="#ff8a1f" />
+                <path class="flicker" d="M20 47 Q8 45 7 50 Q8 55 20 53 Z" fill="#ffcf2e" />
+            }
+            @if (Look.Has("sidecar"))
+            {
+                <rect x="40" y="84" width="16" height="8" rx="3" fill="#222" />
+                <rect x="30" y="64" width="36" height="23" rx="11" fill="@c" stroke="@ink" stroke-width="3" />
+                <circle cx="48" cy="75" r="6" fill="#ffd9b0" stroke="@ink" stroke-width="2" />
+            }
+            <rect x="70" y="44" width="24" height="12" rx="6" fill="#222" />
+            <rect x="6" y="44" width="24" height="12" rx="6" fill="#222" />
+            <rect x="18" y="39" width="60" height="22" rx="11" fill="@c" stroke="@ink" stroke-width="3" />
+            <rect x="64" y="26" width="6" height="48" rx="3" fill="#2d3047" />
+            @if (Look.Has("streamers"))
+            {
+                <path class="wave" d="M66 28 q-8 -7 -16 -2 t-16 -2" stroke="#ff4fa3" stroke-width="4" fill="none" stroke-linecap="round" />
+                <path class="wave" d="M66 72 q-8 7 -16 2 t-16 2" stroke="#2ec4ff" stroke-width="4" fill="none" stroke-linecap="round" />
+            }
+            <ellipse cx="45" cy="50" rx="10" ry="17" fill="#2d3047" stroke="@ink" stroke-width="2" />
+            @if (Look.Has("helmet"))
+            {
+                <circle cx="50" cy="50" r="12" fill="#fff" stroke="@ink" stroke-width="2.5" />
+                <rect x="40" y="47" width="20" height="6" fill="@c" />
+                <path d="M56 41 Q63 50 56 59" stroke="#2d3047" stroke-width="5" fill="none" stroke-linecap="round" />
+            }
+            else
+            {
+                <circle cx="50" cy="50" r="9" fill="#ffd9b0" stroke="@ink" stroke-width="2" />
+                <path d="M44 43 Q50 40 55 44" stroke="#6b3e1f" stroke-width="4" fill="none" stroke-linecap="round" />
+            }
+        </g>
+        break;
+
+    case BaseKind.Turtle:
+        <g class="art art-turtle">
+            <path d="M20 50 L6 45 L6 55 Z" fill="#6cc24a" stroke="@ink" stroke-width="2" />
+            <ellipse class="leg" cx="30" cy="25" rx="9" ry="8" fill="#6cc24a" stroke="@ink" stroke-width="2" />
+            <ellipse class="leg" cx="66" cy="25" rx="9" ry="8" fill="#6cc24a" stroke="@ink" stroke-width="2" />
+            <ellipse class="leg" cx="30" cy="75" rx="9" ry="8" fill="#6cc24a" stroke="@ink" stroke-width="2" />
+            <ellipse class="leg" cx="66" cy="75" rx="9" ry="8" fill="#6cc24a" stroke="@ink" stroke-width="2" />
+            <circle cx="83" cy="50" r="12" fill="#6cc24a" stroke="@ink" stroke-width="2.5" />
+            <ellipse cx="48" cy="50" rx="31" ry="26" fill="@c" stroke="@ink" stroke-width="3" />
+            <ellipse cx="48" cy="50" rx="12" ry="10" fill="#fff" opacity=".28" />
+            <ellipse cx="32" cy="38" rx="7" ry="6" fill="#fff" opacity=".2" />
+            <ellipse cx="64" cy="38" rx="7" ry="6" fill="#fff" opacity=".2" />
+            <ellipse cx="32" cy="62" rx="7" ry="6" fill="#fff" opacity=".2" />
+            <ellipse cx="64" cy="62" rx="7" ry="6" fill="#fff" opacity=".2" />
+            @if (Look.Has("spikes"))
+            {
+                @foreach (var (x, y) in Spikes)
+                {
+                    <circle cx="@x" cy="@y" r="4.5" fill="#fff" stroke="@ink" stroke-width="2" />
+                    <circle cx="@x" cy="@y" r="1.5" fill="@ink" />
+                }
+            }
+            @if (Look.Has("shades"))
+            {
+                <rect x="84" y="44" width="3" height="12" fill="#111" />
+                <circle cx="87" cy="43" r="5" fill="#111" />
+                <circle cx="87" cy="57" r="5" fill="#111" />
+                <circle cx="89" cy="41.5" r="1.4" fill="#fff" />
+                <circle cx="89" cy="55.5" r="1.4" fill="#fff" />
+            }
+            else
+            {
+                <circle cx="87" cy="44" r="3.5" fill="#fff" stroke="@ink" stroke-width="1" />
+                <circle cx="87" cy="56" r="3.5" fill="#fff" stroke="@ink" stroke-width="1" />
+                <circle cx="88.5" cy="44" r="1.7" fill="@ink" />
+                <circle cx="88.5" cy="56" r="1.7" fill="@ink" />
+            }
+            @if (Look.Has("partyhat"))
+            {
+                <path d="M78 41 L99 50 L78 59 Z" fill="#a259ff" stroke="@ink" stroke-width="2" />
+                <path d="M84 43.5 L84 56.5 M90 46 L90 54" stroke="#ffcf2e" stroke-width="3" />
+                <circle cx="99" cy="50" r="3.5" fill="#ffcf2e" stroke="@ink" stroke-width="1.5" />
+            }
+            @if (Look.Has("bowtie"))
+            {
+                <path d="M73 50 L66 42 L66 58 Z" fill="#ef3b3b" stroke="@ink" stroke-width="1.5" />
+                <path d="M73 50 L80 42 L80 58 Z" fill="#ef3b3b" stroke="@ink" stroke-width="1.5" />
+                <circle cx="73" cy="50" r="3" fill="#ffcf2e" stroke="@ink" stroke-width="1.5" />
+            }
+        </g>
+        break;
+
+    case BaseKind.Plane:
+        <g class="art art-plane">
+            @if (Look.Has("smoke"))
+            {
+                <circle class="puff" cx="14" cy="50" r="6" fill="#fff" opacity=".85" />
+                <circle class="puff p2" cx="5" cy="44" r="4.5" fill="#fff" opacity=".7" />
+                <circle class="puff p3" cx="4" cy="57" r="4" fill="#fff" opacity=".6" />
+            }
+            @if (Look.Has("banner"))
+            {
+                <path d="M22 50 L14 50" stroke="#2d3047" stroke-width="1.5" />
+                <path class="wave" d="M1 40 L14 41 L14 59 L1 60 Z" fill="#ffcf2e" stroke="@ink" stroke-width="1.5" />
+                <path d="M4 46 L11 46 M4 50 L11 50 M4 54 L11 54" stroke="#ef3b3b" stroke-width="2" />
+            }
+            <path d="M22 50 L28 30 L36 30 L36 70 L28 70 Z" fill="@c" stroke="@ink" stroke-width="2.5" stroke-linejoin="round" />
+            <path d="M46 50 L52 5 L63 5 L64 50 L63 95 L52 95 Z" fill="@c" stroke="@ink" stroke-width="3" stroke-linejoin="round" />
+            @if (Look.Has("stars"))
+            {
+                <path d="@StarPath(57, 20, 7)" fill="#ffcf2e" stroke="@ink" stroke-width="1.2" />
+                <path d="@StarPath(57, 80, 7)" fill="#ffcf2e" stroke="@ink" stroke-width="1.2" />
+            }
+            <ellipse cx="57" cy="50" rx="37" ry="10" fill="#f4f6fb" stroke="@ink" stroke-width="3" />
+            <path d="M84 41 Q95 50 84 59 Z" fill="@c" />
+            <ellipse cx="74" cy="50" rx="7" ry="5" fill="#bfe9ff" stroke="@ink" stroke-width="2" />
+            @if (Look.Has("propeller"))
+            {
+                <ellipse class="prop" cx="95" cy="50" rx="2.5" ry="17" fill="#2d3047" opacity=".55" />
+                <circle cx="95" cy="50" r="3.5" fill="#ef3b3b" stroke="@ink" stroke-width="1.5" />
+            }
+        </g>
+        break;
+
+    case BaseKind.Rocket:
+        <g class="art art-rocket">
+            @if (Look.Has("flame"))
+            {
+                <path class="flicker" d="M24 40 Q-6 50 24 60 Z" fill="#ff8a1f" />
+                <path class="flicker f2" d="M24 44 Q6 50 24 56 Z" fill="#ffcf2e" />
+            }
+            @if (Look.Has("fins"))
+            {
+                <path d="M44 37 L20 8 L12 18 L26 40 Z" fill="#ffcf2e" stroke="@ink" stroke-width="2.5" stroke-linejoin="round" />
+                <path d="M44 63 L20 92 L12 82 L26 60 Z" fill="#ffcf2e" stroke="@ink" stroke-width="2.5" stroke-linejoin="round" />
+            }
+            else
+            {
+                <path d="M38 37 L22 24 L18 32 L26 40 Z" fill="#2d3047" stroke="@ink" stroke-width="2" stroke-linejoin="round" />
+                <path d="M38 63 L22 76 L18 68 L26 60 Z" fill="#2d3047" stroke="@ink" stroke-width="2" stroke-linejoin="round" />
+            }
+            <path d="M24 36 L66 36 Q86 38 96 50 Q86 62 66 64 L24 64 Q19 50 24 36 Z" fill="@c" stroke="@ink" stroke-width="3" stroke-linejoin="round" />
+            <rect x="40" y="36" width="5" height="28" fill="#fff" opacity=".55" />
+            <circle cx="66" cy="50" r="8.5" fill="#bfe9ff" stroke="@ink" stroke-width="2.5" />
+            @if (Look.Has("astronaut"))
+            {
+                <circle cx="66" cy="50" r="6" fill="#fff" />
+                <circle cx="67" cy="50" r="4" fill="#2d3047" />
+                <circle cx="68.5" cy="48.5" r="1.3" fill="#fff" />
+            }
+            @if (Look.Has("antenna"))
+            {
+                <path d="M90 47 L99 38" stroke="#2d3047" stroke-width="2.5" stroke-linecap="round" />
+                <circle class="blink" cx="99" cy="37" r="3.5" fill="#ef3b3b" stroke="@ink" stroke-width="1.5" />
+            }
+        </g>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public CharacterLook Look { get; set; } = CharacterLook.Default;
+
+    private static readonly (int, int)[] Spikes = [(36, 34), (48, 29), (60, 34), (36, 66), (48, 71), (60, 66), (48, 50)];
+
+    private static string StarPath(double cx, double cy, double r)
+    {
+        var pts = Enumerable.Range(0, 10).Select(i =>
+        {
+            var a = Math.PI / 5 * i - Math.PI / 2;
+            var rr = i % 2 == 0 ? r : r * 0.45;
+            return $"{cx + rr * Math.Cos(a):0.#},{cy + rr * Math.Sin(a):0.#}";
+        });
+        return "M" + string.Join(" L", pts) + " Z";
+    }
+}

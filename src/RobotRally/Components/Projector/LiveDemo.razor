@@ -1,0 +1,115 @@
+@implements IDisposable
+@inject GameService Game
+@inject IJSRuntime Js
+
+<div class="pj-demo">
+    <header class="pj-demo-head">
+        <h1 class="logo">Live demo</h1>
+        <label class="demo-pick">
+            Track
+            <select @onchange="PickLevel" value="@_key">
+                <option value="sandbox">Sandbox (all blocks, no limit)</option>
+                <option value="basics">Demo: basics</option>
+                <option value="repeat">Demo: repeat</option>
+                <option value="if">Demo: if</option>
+                @foreach (var l in Game.Levels)
+                {
+                    <option value="@l.Number">Level @l.Number: @l.Name</option>
+                }
+            </select>
+        </label>
+        @if (int.TryParse(_key, out _))
+        {
+            <button type="button" class="btn btn-quiet" @onclick="LoadSolution" disabled="@_view.Running">Show a solution</button>
+        }
+    </header>
+
+    <PlayArea Level="_level" Program="_program" Look="DemoLooks.Racer"
+              Pose="_view.Pose" Status="_view.Status" ActiveBlockId="_view.ActiveBlock" BugBlockId="_view.Bug"
+              Running="_view.Running" CanStop="_view.CanStopAt(Game.Now)" Message="@_view.Message" MessageKind="@_view.MessageKind"
+              OnRun="Run" OnStop="Stop" OnProgramChanged="() => _view.ClearNotes()">
+        <Overlay>
+            @if (_view.Celebrate)
+            {
+                <div class="level-complete"><div class="lc-star">⭐</div><div class="lc-text">You made it!</div></div>
+            }
+        </Overlay>
+    </PlayArea>
+</div>
+
+@code {
+    private RunView _view = default!;
+    private Level _level = Levels.Sandbox;
+    private string _key = "sandbox";
+    private List<Block> _program = [];
+    private PeriodicTimer? _timer;
+
+    protected override void OnInitialized()
+    {
+        _view = new RunView(Js);
+        _view.Reset(_level.StartPose);
+        _ = Loop();
+    }
+
+    private async Task Loop()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync())
+                await InvokeAsync(() =>
+                {
+                    try { if (_view.Update(Game.Now, _level.StartPose, autoClear: true)) StateHasChanged(); }
+                    catch (Exception ex) when (ex is not ObjectDisposedException) { }
+                });
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void PickLevel(ChangeEventArgs e)
+    {
+        _key = e.Value?.ToString() ?? "sandbox";
+        _level = _key switch
+        {
+            "basics" => Levels.DemoBasics,
+            "repeat" => Levels.DemoRepeat,
+            "if" => Levels.DemoIf,
+            _ when int.TryParse(_key, out var n) && n >= 1 && n <= Game.Levels.Count => Game.Levels[n - 1],
+            _ => Levels.Sandbox,
+        };
+        _program = [];
+        _view.Stop(_level.StartPose);
+        _view.ClearNotes();
+        _view.Celebrate = false;
+        Js.Sfx("whoosh");
+    }
+
+    private void LoadSolution()
+    {
+        if (!int.TryParse(_key, out var n)) return;
+        _program = Levels.Solution(n);
+        _view.ClearNotes();
+        Js.Sfx("drop");
+    }
+
+    private void Run()
+    {
+        if (_view.Running) return;
+        if (_program.Count == 0)
+        {
+            Js.Sfx("deny");
+            _view.Say("Drag some blocks into the program first!");
+            return;
+        }
+        _view.Begin(Interpreter.Run(_level, _program), Game.Now);
+    }
+
+    private void Stop()
+    {
+        if (!_view.CanStopAt(Game.Now)) return;
+        _view.Stop(_level.StartPose);
+        Js.Sfx("click");
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

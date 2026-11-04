@@ -1,0 +1,54 @@
+@implements IDisposable
+@inject GameService Game
+@inject IJSRuntime Js
+
+@if (_label is not null)
+{
+    <div class="countdown">
+        <div @key="_label" class="countdown-num @(_label == "GO!" ? "go" : "")">@_label</div>
+    </div>
+}
+
+@code {
+    [Parameter] public DateTimeOffset? EndsAt { get; set; }
+    [Parameter] public bool Sound { get; set; } = true;
+
+    private string? _label;
+    private PeriodicTimer? _timer;
+
+    protected override void OnInitialized()
+    {
+        Update();
+        _ = Loop();
+    }
+
+    private async Task Loop()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(80));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync())
+                await InvokeAsync(() => { try { Update(); } catch (Exception ex) when (ex is not ObjectDisposedException) { } });
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void Update()
+    {
+        if (EndsAt is not { } end) return;
+        var left = (end - Game.Now).TotalSeconds;
+        var label = left switch
+        {
+            > 2.7 => "3",
+            > 1.8 => "2",
+            > 0.9 => "1",
+            _ => "GO!",
+        };
+        if (label == _label) return;
+        _label = label;
+        if (Sound) Js.Sfx(label == "GO!" ? "go" : "count");
+        StateHasChanged();
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

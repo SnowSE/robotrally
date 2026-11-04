@@ -1,0 +1,68 @@
+@implements IDisposable
+@inject GameService Game
+@inject IJSRuntime Js
+
+<div class="pj-podium">
+    <h1 class="logo huge">Winners!</h1>
+    <div class="podium">
+        @foreach (var (p, place) in Order())
+        {
+            <div class="podium-spot place-@place">
+                <div class="podium-racer"><CharacterIcon Look="p.Look" Size="190" Angle="-90" Class="dance" /></div>
+                <span class="nick-pill big">@p.Nickname</span>
+                <span class="podium-detail">@(p.Finished ? "Finished all levels" : $"Reached level {p.LevelIndex + 1}")</span>
+                <div class="podium-block">@place</div>
+            </div>
+        }
+    </div>
+    @if (_rest.Count > 0)
+    {
+        <div class="parade">
+            @foreach (var p in _rest)
+            {
+                <div class="parade-racer">
+                    <CharacterIcon Look="p.Look" Size="70" Angle="-90" Class="bob" />
+                    <span class="nick-pill small">@p.Nickname</span>
+                </div>
+            }
+        </div>
+    }
+    <p class="pj-thanks">Great job, programmers! Every crash was a bug you found and fixed.</p>
+</div>
+
+@code {
+    private List<Player> _top = [];
+    private List<Player> _rest = [];
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+        Game.Changed += OnGameChanged;
+    }
+
+    private void OnGameChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
+
+    private void Refresh()
+    {
+        var standings = Game.Standings();
+        _top = standings.Take(3).ToList();
+        _rest = standings.Skip(3).ToList();
+    }
+
+    public void Dispose() => Game.Changed -= OnGameChanged;
+
+    // Podium order on screen: 2nd, 1st, 3rd.
+    private IEnumerable<(Player, int)> Order()
+    {
+        if (_top.Count > 1) yield return (_top[1], 2);
+        if (_top.Count > 0) yield return (_top[0], 1);
+        if (_top.Count > 2) yield return (_top[2], 3);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        Js.Sfx("podium");
+        Js.Confetti(260, 0.5, 0.3);
+    }
+}

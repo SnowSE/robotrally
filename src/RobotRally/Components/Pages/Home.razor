@@ -1,0 +1,100 @@
+@page "/"
+@implements IDisposable
+@inject GameService Game
+@inject IJSRuntime Js
+
+<PageTitle>Robot Rally</PageTitle>
+
+<div class="kid-app">
+    @if (!_loaded)
+    {
+        <div class="splash">🏁</div>
+    }
+    else if (_player is null)
+    {
+        <CharacterBuilder OnReady="Join" Full="_full" />
+    }
+    else
+    {
+        @switch (Game.Phase)
+        {
+            case GamePhase.Lobby:
+            case GamePhase.Demo:
+                <KidLobby Player="_player" Phase="Game.Phase" />
+                break;
+            case GamePhase.Countdown:
+                <KidLobby Player="_player" Phase="Game.Phase" />
+                <CountdownOverlay EndsAt="Game.CountdownEndsAt" />
+                break;
+            case GamePhase.Race when _player.Finished:
+                <KidFinished Player="_player" />
+                break;
+            case GamePhase.Race:
+                <KidRace Player="_player" />
+                break;
+            case GamePhase.Podium:
+                <KidPodium Player="_player" />
+                break;
+        }
+    }
+    <MuteButton />
+</div>
+
+@code {
+    private const string TokenKey = "rr-token";
+    private Player? _player;
+    private bool _loaded;
+    private bool _full;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        string? token = null;
+        try { token = await Js.InvokeAsync<string?>("rally.store.get", TokenKey); } catch { }
+        _player = Game.Resume(token);
+        if (token is not null && _player is null) await ForgetToken();
+        if (_disposed) return;
+        Game.Changed += OnGameChanged;
+        _loaded = true;
+        StateHasChanged();
+    }
+
+    private async Task Join((CharacterLook Look, string Nickname) choice)
+    {
+        var p = Game.Join(choice.Look, choice.Nickname);
+        if (p is null)
+        {
+            _full = true;
+            Js.Sfx("deny");
+            return;
+        }
+        _player = p;
+        Js.Sfx("pop");
+        try { await Js.InvokeVoidAsync("rally.store.set", TokenKey, p.Token); } catch { }
+    }
+
+    private void OnGameChanged() => _ = InvokeAsync(async () =>
+    {
+        if (_player is not null && Game.Resume(_player.Token) is null)
+        {
+            // Removed by the admin, or a new group started.
+            _player = null;
+            _full = false;
+            await ForgetToken();
+        }
+        StateHasChanged();
+    });
+
+    private async Task ForgetToken()
+    {
+        try { await Js.InvokeVoidAsync("rally.store.remove", TokenKey); } catch { }
+    }
+
+    private bool _disposed;
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Game.Changed -= OnGameChanged;
+    }
+}

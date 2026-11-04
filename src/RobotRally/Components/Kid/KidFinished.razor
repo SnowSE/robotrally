@@ -1,0 +1,30 @@
+@inject GameService Game
+@inject IJSRuntime Js
+
+<div class="kid-done">
+    <div class="trophy">🏆</div>
+    <h1 class="done-title">You finished all @Game.Levels.Count levels!</h1>
+    <div class="done-racer"><CharacterIcon Look="Player.Look" Class="dance" Size="100%" Angle="-90" /></div>
+    <div class="nick-pill big">@Player.Nickname</div>
+    <p class="done-place">You came in <strong>@Ordinal(Game.PlaceOf(Player))</strong>!</p>
+    <p class="lobby-hint">You're a real programmer now. Watch the big screen to see everyone else race.</p>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Player Player { get; set; } = default!;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        Js.Sfx("finish");
+        Js.Confetti(220);
+    }
+
+    public static string Ordinal(int n) => n switch
+    {
+        1 => "1st 🥇",
+        2 => "2nd 🥈",
+        3 => "3rd 🥉",
+        _ => $"{n}th",
+    };
+}

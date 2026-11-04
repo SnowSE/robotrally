@@ -1,0 +1,212 @@
+@* Toolbox (left) + program (middle). Drag blocks out of the toolbox, drag them around, drag back to throw away.
+   Clicking a toolbox block adds it to the end. Renders two sibling panels for the parent's grid. *@
+@inject IJSRuntime Js
+
+<aside class="toolbox drop-target @(Locked ? "locked" : "")" @ondragover:preventDefault @ondrop="DropOnToolbox">
+    <h2 class="panel-title">Blocks</h2>
+    <div class="tool-list">
+        @foreach (var kind in Toolbox)
+        {
+            var k = kind;
+            var isNew = NewBlocks.Contains(k);
+            <div class="block tool cat-@k.Category() @(Pulse == k ? "pulse" : "") @(isNew ? "is-new" : "")"
+                 draggable="@(Interactive ? "true" : "false")"
+                 @ondragstart="() => StartNew(k)" @ondragend="EndDrag" @onclick="() => Append(k)"
+                 title="@k.Explain()">
+                <span class="b-icon">@k.Icon()</span><span class="b-label">@k.Label()</span>
+                @if (isNew) { <span class="new-badge">New!</span> }
+            </div>
+        }
+    </div>
+    <div class="trash-zone">🗑️ Drop here to throw away</div>
+</aside>
+
+<section class="program @(Locked ? "locked" : "")">
+    <header class="program-head">
+        <h2 class="panel-title">My program</h2>
+        <span @key="_shakeKey" class="block-count @(AtLimit ? "full" : "") @(_shakeKey > 0 ? "shake" : "")"
+              title="@(BlockLimit > 0 ? $"This level lets you use {BlockLimit} blocks" : "")">
+            🧱 @Count@(BlockLimit > 0 ? $" / {BlockLimit}" : "")
+        </span>
+    </header>
+    <div class="program-scroll drop-target" @ondragover:preventDefault @ondrop="() => DropAt(Program, Program.Count)">
+        @RenderList(Program, 0)
+    </div>
+    @Footer
+</section>
+
+@code {
+    [Parameter, EditorRequired] public List<Block> Program { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<BlockKind> Toolbox { get; set; } = [];
+    [Parameter] public IReadOnlyCollection<BlockKind> NewBlocks { get; set; } = [];
+    /// <summary>0 = unlimited.</summary>
+    [Parameter] public int BlockLimit { get; set; }
+    [Parameter] public bool Locked { get; set; }
+    /// <summary>Scripted demo: shown but not editable by mouse.</summary>
+    [Parameter] public bool Demo { get; set; }
+    [Parameter] public Guid? ActiveBlockId { get; set; }
+    [Parameter] public Guid? BugBlockId { get; set; }
+    [Parameter] public BlockKind? Pulse { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    private BlockKind? _dragKind;
+    private Guid? _dragId;
+    private int _shakeKey;
+
+    private bool Interactive => !Locked && !Demo;
+    private int Count => ProgramOps.Count(Program);
+    private bool AtLimit => BlockLimit > 0 && Count >= BlockLimit;
+
+    /// <summary>Plays the "too many blocks" shake (also used by the scripted demo).</summary>
+    public void Deny()
+    {
+        _shakeKey++;
+        Js.Sfx("deny");
+        StateHasChanged();
+    }
+
+    private void StartNew(BlockKind k)
+    {
+        if (!Interactive) return;
+        _dragKind = k;
+        _dragId = null;
+        Js.Sfx("pick");
+    }
+
+    private void StartExisting(Guid id)
+    {
+        if (!Interactive) return;
+        _dragId = id;
+        _dragKind = null;
+        Js.Sfx("pick");
+    }
+
+    private void EndDrag()
+    {
+        _dragId = null;
+        _dragKind = null;
+    }
+
+    private bool TryAdd(List<Block> list, int index, BlockKind kind)
+    {
+        if (AtLimit)
+        {
+            Deny();
+            return false;
+        }
+        list.Insert(Math.Clamp(index, 0, list.Count), new Block { Kind = kind });
+        Js.Sfx("drop");
+        return true;
+    }
+
+    private async Task Append(BlockKind kind)
+    {
+        if (!Interactive) return;
+        if (TryAdd(Program, Program.Count, kind)) await OnChanged.InvokeAsync();
+    }
+
+    private async Task DropAt(List<Block> list, int index)
+    {
+        if (!Interactive) return;
+        var changed = false;
+        if (_dragKind is { } kind)
+        {
+            changed = TryAdd(list, index, kind);
+        }
+        else if (_dragId is { } id)
+        {
+            changed = ProgramOps.Move(Program, id, list, index);
+            Js.Sfx(changed ? "drop" : "deny");
+        }
+        EndDrag();
+        if (changed) await OnChanged.InvokeAsync();
+    }
+
+    private Task DropOnBlock(Block target, List<Block> list) =>
+        target.IsContainer ? DropAt(target.Body, target.Body.Count) : DropAt(list, list.IndexOf(target) + 1);
+
+    private async Task DropOnToolbox()
+    {
+        if (_dragId is { } id && Interactive) await Delete(id);
+        EndDrag();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        if (!Interactive) return;
+        if (ProgramOps.Remove(Program, id) is null) return;
+        Js.Sfx("trash");
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task ChangeCount(Block b, int delta)
+    {
+        if (!Interactive) return;
+        var next = Math.Clamp(b.Count + delta, Block.MinCount, Block.MaxCount);
+        if (next == b.Count) { Js.Sfx("deny"); return; }
+        b.Count = next;
+        Js.Sfx("click");
+        await OnChanged.InvokeAsync();
+    }
+
+    private RenderFragment RenderList(List<Block> list, int depth) => __builder =>
+    {
+        <div class="block-list">
+            @if (list.Count == 0)
+            {
+                <div class="drop-slot empty drop-target" @ondragover:preventDefault
+                     @ondrop="() => DropAt(list, 0)" @ondrop:stopPropagation="true">
+                    @(depth == 0 ? "Drag blocks here 👇" : "Put blocks inside")
+                </div>
+            }
+            else
+            {
+                <div class="drop-slot drop-target" @ondragover:preventDefault @ondrop="() => DropAt(list, 0)" @ondrop:stopPropagation="true"></div>
+                @for (var i = 0; i < list.Count; i++)
+                {
+                    var index = i;
+                    var b = list[i];
+                    @RenderBlock(b, list)
+                    <div class="drop-slot drop-target" @ondragover:preventDefault @ondrop="() => DropAt(list, index + 1)" @ondrop:stopPropagation="true"></div>
+                }
+            }
+        </div>
+    };
+
+    private RenderFragment RenderBlock(Block b, List<Block> list) => __builder =>
+    {
+        <div @key="b.Id"
+             class="block cat-@b.Kind.Category() @(b.IsContainer ? "container" : "") @(ActiveBlockId == b.Id ? "active" : "") @(BugBlockId == b.Id ? "bug" : "") @(_dragId == b.Id ? "dragging-src" : "")"
+             draggable="@(Interactive ? "true" : "false")"
+             @ondragstart="() => StartExisting(b.Id)" @ondragstart:stopPropagation="true" @ondragend="EndDrag"
+             @ondragover:preventDefault @ondrop="() => DropAt(list, list.IndexOf(b) + 1)" @ondrop:stopPropagation="true">
+            <div class="block-head drop-target" @ondragover:preventDefault @ondrop="() => DropOnBlock(b, list)" @ondrop:stopPropagation="true">
+                <span class="b-icon">@b.Kind.Icon()</span>
+                <span class="b-label">@b.Kind.Label()</span>
+                @if (b.Kind == BlockKind.Repeat)
+                {
+                    <span class="count-ctl">
+                        <button class="cnt" type="button" title="Fewer times" @onclick="() => ChangeCount(b, -1)" @onclick:stopPropagation="true">−</button>
+                        <span class="cnt-val">@b.Count</span>
+                        <button class="cnt" type="button" title="More times" @onclick="() => ChangeCount(b, 1)" @onclick:stopPropagation="true">+</button>
+                        <span class="cnt-times">times</span>
+                    </span>
+                }
+                @if (BugBlockId == b.Id)
+                {
+                    <span class="bug-badge" title="Your racer crashed on this block">🐞</span>
+                }
+                @if (Interactive)
+                {
+                    <button class="x" type="button" title="Throw away" @onclick="() => Delete(b.Id)" @onclick:stopPropagation="true">✖</button>
+                }
+            </div>
+            @if (b.IsContainer)
+            {
+                <div class="block-body" @ondragover:preventDefault @ondrop="() => DropAt(b.Body, b.Body.Count)" @ondrop:stopPropagation="true">@RenderList(b.Body, 1)</div>
+                <div class="block-foot"></div>
+            }
+        </div>
+    };
+}

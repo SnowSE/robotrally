@@ -1,0 +1,79 @@
+@* The kid's workspace: toolbox | program | track. Also used by the projector demos. *@
+<div class="play-area @(Demo ? "demo" : "") @Class">
+    <ProgramEditor @ref="Editor" Program="Program" Toolbox="Toolbox ?? Level.Toolbox" NewBlocks="NewBlocks ?? Level.NewBlocks"
+                   BlockLimit="BlockLimit ?? Level.BlockLimit" Locked="Running" Demo="Demo"
+                   ActiveBlockId="ActiveBlockId" BugBlockId="BugBlockId" Pulse="PulseBlock" OnChanged="OnProgramChanged">
+        <Footer>
+            <div class="program-actions">
+                @if (Running)
+                {
+                    <button type="button" class="btn btn-stop" @onclick="OnStop" disabled="@(!Demo && !CanStop)">⏹ Stop</button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-go @(PulseGo ? "pulse" : "")" @onclick="OnRun">▶ GO!</button>
+                }
+                <button type="button" class="btn btn-clear" @onclick="Clear" disabled="@(!Demo && (Running || Program.Count == 0))" title="Throw away all blocks">🧹</button>
+            </div>
+        </Footer>
+    </ProgramEditor>
+
+    <section class="track-panel">
+        @if (Message is not null)
+        {
+            <div @key="Message" class="speech speech-@MessageKind" role="status">@Message</div>
+        }
+        else
+        {
+            @TrackHeader
+        }
+        <div class="track-board @(PulseBoard ? "pulse-board" : "")">
+            <Board Level="Level" Racers="_racers" />
+            @Overlay
+        </div>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Level Level { get; set; } = default!;
+    [Parameter, EditorRequired] public List<Block> Program { get; set; } = [];
+    [Parameter, EditorRequired] public CharacterLook Look { get; set; } = CharacterLook.Default;
+    [Parameter] public IReadOnlyList<BlockKind>? Toolbox { get; set; }
+    [Parameter] public IReadOnlyCollection<BlockKind>? NewBlocks { get; set; }
+    [Parameter] public int? BlockLimit { get; set; }
+    [Parameter] public Pose? Pose { get; set; }
+    [Parameter] public PlayStatus Status { get; set; }
+    [Parameter] public Guid? ActiveBlockId { get; set; }
+    [Parameter] public Guid? BugBlockId { get; set; }
+    [Parameter] public bool Running { get; set; }
+    [Parameter] public bool CanStop { get; set; } = true;
+    [Parameter] public bool Demo { get; set; }
+    [Parameter] public BlockKind? PulseBlock { get; set; }
+    [Parameter] public bool PulseGo { get; set; }
+    [Parameter] public bool PulseBoard { get; set; }
+    [Parameter] public string? Message { get; set; }
+    /// <summary>good | bad | info</summary>
+    [Parameter] public string MessageKind { get; set; } = "info";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback OnRun { get; set; }
+    [Parameter] public EventCallback OnStop { get; set; }
+    [Parameter] public EventCallback OnProgramChanged { get; set; }
+    [Parameter] public RenderFragment? TrackHeader { get; set; }
+    [Parameter] public RenderFragment? Overlay { get; set; }
+
+    public ProgramEditor? Editor { get; private set; }
+
+    private IReadOnlyList<BoardRacer> _racers = [];
+
+    protected override void OnParametersSet()
+    {
+        _racers = [new BoardRacer("me", Look, Pose ?? Level.StartPose, Status)];
+    }
+
+    private async Task Clear()
+    {
+        if (Demo || Running || Program.Count == 0) return;
+        Program.Clear();
+        await OnProgramChanged.InvokeAsync();
+    }
+}

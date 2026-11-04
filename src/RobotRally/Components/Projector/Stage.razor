@@ -1,0 +1,8 @@
+@* A fixed 1920×1080 canvas scaled to fit the projector window. *@
+<div class="stage-wrap">
+    <div class="stage">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

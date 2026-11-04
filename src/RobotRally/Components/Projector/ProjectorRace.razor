@@ -1,0 +1,161 @@
+@implements IDisposable
+@inject GameService Game
+@inject JoinInfo Join
+@inject IJSRuntime Js
+
+<div class="pj-race">
+    <header class="pj-race-head">
+        <h1 class="logo">Robot Rally</h1>
+        <div class="race-stat">⏱ <span>@Elapsed</span></div>
+        <div class="race-stat">🏆 <span>@_players.Count(p => p.Finished)</span> finished</div>
+        <div class="join-mini">@Join.Display</div>
+    </header>
+
+    <div class="tiles">
+        @foreach (var level in Game.Levels)
+        {
+            var racers = _byLevel[level.Number - 1];
+            <div class="tile @(racers.Count > 0 ? "busy" : "")">
+                <div class="tile-head">
+                    <span class="tile-num">@level.Number</span>
+                    <span class="tile-name">@level.Name</span>
+                    @foreach (var k in level.NewBlocks.Where(k => k.IsContainer()))
+                    {
+                        <span class="tile-new block cat-@k.Category()" title="@k.Label()">@k.Icon()</span>
+                    }
+                    @if (racers.Count > 0) { <span class="tile-count">@racers.Count</span> }
+                </div>
+                <div class="tile-board">
+                    <Board Level="level" Racers="racers" Crowd="true" />
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="ribbon">
+        <div class="ribbon-road">
+            @for (var i = 0; i <= Game.Levels.Count; i++)
+            {
+                <div class="ribbon-mark @(i == Game.Levels.Count ? "finish" : "")" style="left: @(i * ColW)px; width: @(ColW)px">
+                    @(i == Game.Levels.Count ? "🏁 Finish" : $"Level {i + 1}")
+                </div>
+            }
+            @foreach (var (p, x, y) in _ribbon)
+            {
+                <div @key="p.Id" class="ribbon-racer" style="left: @(x)px; top: @(y)px">
+                    <CharacterIcon Look="p.Look" Size="44" />
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="toasts">
+        @foreach (var t in _toasts)
+        {
+            <div @key="t.Id" class="toast @(t.Big ? "big" : "")">
+                <CharacterIcon Look="t.Look" Size="40" Angle="-90" />
+                <span>@t.Text</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private const int ColW = 170;
+    private const int Cols = 4;
+    private const int Cell = 41;
+
+    private sealed record Toast(Guid Id, CharacterLook Look, string Text, bool Big, DateTimeOffset Until);
+
+    private IReadOnlyList<Player> _players = [];
+    private List<BoardRacer>[] _byLevel = [];
+    private List<(Player, int, int)> _ribbon = [];
+    private readonly Dictionary<string, (int Level, bool Finished)> _seen = new();
+    private readonly List<Toast> _toasts = [];
+    private PeriodicTimer? _timer;
+
+    private string Elapsed => Game.RaceStartedAt is { } s ? (Game.Now - s).ToString(@"mm\:ss") : "00:00";
+
+    protected override void OnInitialized()
+    {
+        Refresh(announce: false);
+        _ = Loop();
+    }
+
+    private async Task Loop()
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync())
+                await InvokeAsync(() =>
+                {
+                    try { Refresh(announce: true); StateHasChanged(); }
+                    catch (Exception ex) when (ex is not ObjectDisposedException) { }
+                });
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void Refresh(bool announce)
+    {
+        var now = Game.Now;
+        _players = Game.Standings();
+        _byLevel = Game.Levels.Select(_ => new List<BoardRacer>()).ToArray();
+
+        foreach (var p in _players)
+        {
+            if (p.Finished || p.LevelIndex >= Game.Levels.Count) continue;
+            var level = Game.Levels[p.LevelIndex];
+            var pose = level.StartPose;
+            var status = PlayStatus.Idle;
+            if (p.CurrentRun is { } run && run.LevelIndex == p.LevelIndex)
+            {
+                var f = Playback.Frame(run.Result, now - run.StartedAt);
+                pose = f.Pose;
+                status = f.Status;
+            }
+            _byLevel[p.LevelIndex].Add(new BoardRacer(p.Id, p.Look, pose, status));
+        }
+
+        // Ribbon: one column per level (plus finish), racers packed in arrival order.
+        _ribbon = [];
+        foreach (var group in _players.GroupBy(p => p.Finished ? Game.Levels.Count : Math.Min(p.LevelIndex, Game.Levels.Count - 1)))
+        {
+            var k = 0;
+            foreach (var p in group.OrderBy(p => p.FinishedAt ?? p.LevelReachedAt))
+            {
+                _ribbon.Add((p, group.Key * ColW + 8 + (k % Cols) * Cell, 34 + (k / Cols) * Cell));
+                k++;
+            }
+        }
+
+        foreach (var p in _players)
+        {
+            if (_seen.TryGetValue(p.Id, out var before) && announce)
+            {
+                if (p.Finished && !before.Finished)
+                {
+                    AddToast(p, $"{p.Nickname} finished! 🏆", big: true, now);
+                    Js.Sfx("finish");
+                    Js.Confetti(220);
+                }
+                else if (p.LevelIndex > before.Level && !p.Finished)
+                {
+                    AddToast(p, $"{p.Nickname} reached level {p.LevelIndex + 1}!", big: false, now);
+                    Js.Sfx("whoosh");
+                }
+            }
+            _seen[p.Id] = (p.LevelIndex, p.Finished);
+        }
+        _toasts.RemoveAll(t => t.Until < now);
+    }
+
+    private void AddToast(Player p, string text, bool big, DateTimeOffset now)
+    {
+        _toasts.Insert(0, new Toast(Guid.NewGuid(), p.Look, text, big, now + TimeSpan.FromSeconds(big ? 6 : 4)));
+        if (_toasts.Count > 5) _toasts.RemoveAt(_toasts.Count - 1);
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

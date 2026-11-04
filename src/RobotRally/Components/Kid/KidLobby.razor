@@ -1,0 +1,40 @@
+@inject IJSRuntime Js
+
+<div class="kid-lobby">
+    <h1 class="logo">Robot Rally</h1>
+    <button type="button" class="lobby-racer" @onclick="Trick" title="Do a trick!">
+        <span @key="_trickKey" class="trick-wrap @_trick">
+            <CharacterIcon Look="Player.Look" Class="bob" Size="100%" Angle="-90" />
+        </span>
+    </button>
+    <div class="nick-pill big">@Player.Nickname</div>
+    @if (Phase == GamePhase.Demo)
+    {
+        <p class="lobby-msg">👀 Look at the big screen!</p>
+    }
+    else if (Phase == GamePhase.Countdown)
+    {
+        <p class="lobby-msg">Get ready…</p>
+    }
+    else
+    {
+        <p class="lobby-msg">You're in! The race starts soon.</p>
+        <p class="lobby-hint">Click your racer to do a trick.</p>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Player Player { get; set; } = default!;
+    [Parameter] public GamePhase Phase { get; set; }
+
+    private static readonly string[] Tricks = ["spin", "flip", "jump"];
+    private string _trick = "";
+    private int _trickKey;
+
+    private void Trick()
+    {
+        _trick = Tricks[Random.Shared.Next(Tricks.Length)];
+        _trickKey++;
+        Js.Sfx("trick");
+    }
+}

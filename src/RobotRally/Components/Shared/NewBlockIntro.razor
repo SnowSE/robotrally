@@ -1,0 +1,28 @@
+<div class="modal-backdrop">
+    <div class="modal intro">
+        @if (Level.Number == 1)
+        {
+            <h2>How to play</h2>
+            <p class="intro-lead">Drag blocks into <strong>My program</strong>, then press <strong>GO!</strong> Get your racer to the 🏁 flag.</p>
+        }
+        else
+        {
+            <h2>✨ New block@(Level.NewBlocks.Length > 1 ? "s" : "")!</h2>
+        }
+        <ul class="intro-blocks">
+            @foreach (var k in Level.NewBlocks)
+            {
+                <li>
+                    <span class="block cat-@k.Category() chip"><span class="b-icon">@k.Icon()</span><span class="b-label">@k.Label()</span></span>
+                    <span class="intro-explain">@k.Explain()</span>
+                </li>
+            }
+        </ul>
+        <button type="button" class="btn btn-go" @onclick="OnClose">Got it!</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Level Level { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+}
