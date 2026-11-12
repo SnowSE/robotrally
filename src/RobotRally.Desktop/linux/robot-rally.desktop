@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Robot Rally
+Comment=A classroom coding race: kids program racers through maze levels
+Exec=robot-rally
+Icon=robot-rally
+Categories=Education;
+Terminal=false

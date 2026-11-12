@@ -66,14 +66,14 @@ jobs:
           mv "dist/Robot Rally/RobotRally.Desktop.exe" "dist/Robot Rally/Robot Rally.exe"
           cd dist && 7z a -tzip "../${{ matrix.asset }}.zip" "Robot Rally" > /dev/null
 
+      # One-file AppImage (appimagetool pinned and checksummed). It uses the system's WebKitGTK rather than bundling it.
       - name: Package (Linux)
         if: startsWith(matrix.rid, 'linux')
         run: |
-          mkdir -p dist/robot-rally
-          cp -R publish/. dist/robot-rally/
-          mv dist/robot-rally/RobotRally.Desktop dist/robot-rally/robot-rally
-          chmod +x dist/robot-rally/robot-rally
-          tar -C dist -czf "${{ matrix.asset }}.tar.gz" robot-rally
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum -c -
+          chmod +x appimagetool
+          src/RobotRally.Desktop/linux/build-appimage.sh publish "${{ matrix.asset }}.AppImage" ./appimagetool
 
       # A Mac app: the executable (and its native libraries) in Contents/MacOS, the web files in Contents/Resources,
       # ad-hoc signed so Apple silicon will run it.
