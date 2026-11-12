@@ -50,6 +50,10 @@ else
                     break;
             }
         </Stage>
+        @if (Game.Phase is GamePhase.Lobby or GamePhase.Podium) @* not mid-demo or mid-race *@
+        {
+            <UpdateNotice Compact="true" />
+        }
         <button type="button" class="drawer-toggle" @onclick="() => _drawer = !_drawer" title="Controls (Esc)">⚙️</button>
         <AdminDrawer Open="_drawer" OnClose="() => _drawer = false" OnDemoNext="DemoNext" OnDemoRestart="DemoRestart" />
     </div>

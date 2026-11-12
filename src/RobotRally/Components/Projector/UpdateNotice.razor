@@ -1,0 +1,55 @@
+@* Desktop app only: a downloaded update is waiting. Offers the restart, after a warning that it ends the game.
+   Compact = the small pill on the projector (can be hidden); otherwise the full version in the controls. *@
+@implements IDisposable
+@inject IServiceProvider Services
+
+@if (_shell?.UpdateReady is { } version && !(Compact && _hidden))
+{
+    <div class="update-notice @(Compact ? "compact" : "")" role="status">
+        @if (_confirm)
+        {
+            <span class="un-text">Restart now? This ends the game in progress, and racers join again afterwards.</span>
+            <span class="un-actions">
+                <button type="button" class="un-go" @onclick="Restart">Restart</button>
+                <button type="button" class="un-later" @onclick="() => _confirm = false">Not now</button>
+            </span>
+        }
+        else
+        {
+            <span class="un-text">@(Compact ? $"⬆️ Update {version} ready" : $"⬆️ Robot Rally {version} is ready")</span>
+            <span class="un-actions">
+                <button type="button" class="un-go" @onclick="() => _confirm = true">@(Compact ? "Restart" : "Restart to update")</button>
+                @if (Compact)
+                {
+                    <button type="button" class="un-later" title="Hide (it installs when you close Robot Rally anyway)" @onclick="() => _hidden = true">✖</button>
+                }
+            </span>
+            @if (!Compact)
+            {
+                <span class="un-note">Or keep going: it installs by itself when you close Robot Rally.</span>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool Compact { get; set; }
+
+    private IDesktopShell? _shell;
+    private bool _confirm, _hidden;
+
+    protected override void OnInitialized()
+    {
+        _shell = Services.GetService<IDesktopShell>();
+        if (_shell is not null) _shell.UpdateReadyChanged += OnUpdateReady;
+    }
+
+    private void OnUpdateReady() => _ = InvokeAsync(StateHasChanged);
+
+    private void Restart() => _shell?.RestartToUpdate();
+
+    public void Dispose()
+    {
+        if (_shell is not null) _shell.UpdateReadyChanged -= OnUpdateReady;
+    }
+}

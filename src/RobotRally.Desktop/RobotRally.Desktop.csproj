@@ -10,29 +10,34 @@
     <AssemblyName>RobotRally.Desktop</AssemblyName>
     <RootNamespace>RobotRally.Desktop</RootNamespace>
     <Product>Robot Rally</Product>
+    <ApplicationIcon>icons/robot-rally.ico</ApplicationIcon>
+    <!-- The default for a build from source. Releases pass -p:Version=1.0.<run number>, which also sets
+         AssemblyVersion and FileVersion as long as neither is set here. -->
+    <Version>1.0.0</Version>
     <!-- No IIS here: skip the generated web.config. -->
     <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
   </PropertyGroup>
 
-  <!-- Publishing for a platform (dotnet publish -r win-x64 / osx-arm64 / linux-x64) makes a self-contained app: no .NET
-       install needed. Everything is in one executable except wwwroot and the static-asset manifest next to it
-       (publish writes those after the single file is bundled). -->
+  <!-- Publishing for a platform (dotnet publish -r win-x64 / osx-arm64 / linux-x64) makes a self-contained app folder:
+       no .NET install needed. A folder, not a single file: Velopack packs that folder into the installer and swaps it
+       out wholesale when updating, which it can't do to a self-extracting executable. -->
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
     <SelfContained>true</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- RobotRally is an app too, but here it is only used as a library (this app hosts it). -->
     <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Photino.NET" Version="4.0.16" />
+    <!-- Keep in step with the vpk version in .github/workflows/release.yml. -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
     <ProjectReference Include="..\RobotRally\RobotRally.csproj" />
   </ItemGroup>
 
   <!-- Leave out the referenced projects' debug symbols, the development settings, and the web project's own launcher
-       files (the Mac packaging step leaves out its apphost, which publish adds later). -->
+       files (this app hosts RobotRally; it never runs on its own here). -->
   <Target Name="TrimPublishedExtras" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' != ''">
     <ItemGroup>
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb' Or '%(Filename)%(Extension)' == 'appsettings.Development.json' Or '%(Filename)%(Extension)' == 'RobotRally' Or '%(Filename)%(Extension)' == 'RobotRally.exe' Or '%(Filename)%(Extension)' == 'RobotRally.runtimeconfig.json'" />

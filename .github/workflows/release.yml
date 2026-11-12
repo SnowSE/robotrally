@@ -1,5 +1,9 @@
-# Every push to main: run the tests, build the desktop app for Windows, Mac and Linux, and publish a GitHub release
-# (v1.0.<run number>) with one download per platform. The newest one is always at /releases/latest.
+# Every push to main: run the tests, build the desktop app for Windows, Mac and Linux with Velopack, and publish a
+# GitHub release (v1.0.<run number>). Installed copies find the new release by themselves, download it in the
+# background, and offer a restart (src/RobotRally.Desktop/DesktopUpdates.cs).
+#
+# Each platform is packaged on its own kind of runner: Velopack builds the Windows installer only on Windows and needs
+# macOS's own tools for the .app and .pkg.
 name: Desktop release
 
 on:
@@ -10,12 +14,14 @@ on:
 permissions:
   contents: write
 
+# Two pushes in a row queue rather than race: cancelling half a release would publish some platforms and not others.
 concurrency:
   group: desktop-release
   cancel-in-progress: false
 
 env:
   VERSION: 1.0.${{ github.run_number }}
+  VPK_VERSION: 1.2.161 # keep in step with the Velopack package in RobotRally.Desktop.csproj
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
@@ -29,16 +35,18 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet test
 
-  build:
+  package:
     needs: test
     strategy:
       fail-fast: true
       matrix:
         include:
-          - { rid: win-x64, os: windows-latest, asset: RobotRally-windows-x64 }
-          - { rid: osx-arm64, os: macos-latest, asset: RobotRally-mac-apple-silicon }
-          - { rid: osx-x64, os: macos-latest, asset: RobotRally-mac-intel }
-          - { rid: linux-x64, os: ubuntu-latest, asset: RobotRally-linux-x64 }
+          # channel: which update feed an installed copy follows. Each platform needs its own; the two Macs differ
+          # by chip, so the Intel one gets a channel of its own.
+          - { rid: win-x64, os: windows-latest, channel: win }
+          - { rid: osx-arm64, os: macos-latest, channel: osx }
+          - { rid: osx-x64, os: macos-latest, channel: osx-x64 }
+          - { rid: linux-x64, os: ubuntu-latest, channel: linux }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -49,68 +57,68 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Macs load native libraries as separate signed files, so they stay out of the single-file bundle there.
+      - name: Install the packaging tool
+        run: dotnet tool install -g vpk --version $VPK_VERSION
+
       - name: Publish
-        run: |
-          native=true
-          [[ "${{ matrix.rid }}" == osx-* ]] && native=false
-          dotnet publish src/RobotRally.Desktop -c Release -r ${{ matrix.rid }} -o publish \
-            -p:Version=$VERSION -p:IncludeNativeLibrariesForSelfExtract=$native
-          ls -la publish
+        run: dotnet publish src/RobotRally.Desktop -c Release -r ${{ matrix.rid }} -o publish -p:Version=$VERSION
 
-      - name: Package (Windows)
+      - name: Package for Windows
         if: startsWith(matrix.rid, 'win')
-        run: |
-          mkdir -p "dist/Robot Rally"
-          cp -R publish/. "dist/Robot Rally/"
-          mv "dist/Robot Rally/RobotRally.Desktop.exe" "dist/Robot Rally/Robot Rally.exe"
-          cd dist && 7z a -tzip "../${{ matrix.asset }}.zip" "Robot Rally" > /dev/null
+        run: >
+          vpk pack --packId RobotRally --packVersion $VERSION --packTitle "Robot Rally"
+          --packDir publish --mainExe RobotRally.Desktop.exe
+          --icon src/RobotRally.Desktop/icons/robot-rally.ico
+          --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }}
 
-      # One-file AppImage (appimagetool pinned and checksummed). It uses the system's WebKitGTK rather than bundling it.
-      - name: Package (Linux)
-        if: startsWith(matrix.rid, 'linux')
-        run: |
-          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
-          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool" | sha256sum -c -
-          chmod +x appimagetool
-          src/RobotRally.Desktop/linux/build-appimage.sh publish "${{ matrix.asset }}.AppImage" ./appimagetool
-
-      # A Mac app: the executable (and its native libraries) in Contents/MacOS, the web files in Contents/Resources,
-      # ad-hoc signed so Apple silicon will run it.
-      - name: Package (Mac)
+      # Our Info.plist rather than Velopack's generic one, so the window may load the game from http://localhost.
+      - name: Package for macOS
         if: startsWith(matrix.rid, 'osx')
         run: |
-          app="dist/Robot Rally.app"
-          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-          cp publish/RobotRally.Desktop "$app/Contents/MacOS/RobotRally"
-          find publish -maxdepth 1 -name '*.dylib' -exec cp {} "$app/Contents/MacOS/" \;
-          cp -R publish/wwwroot publish/*.json "$app/Contents/Resources/"
-          sed "s/VERSION/$VERSION/g" src/RobotRally.Desktop/macos/Info.plist > "$app/Contents/Info.plist"
-          codesign --force --deep --sign - "$app"
-          codesign --verify --deep --strict "$app"
-          ditto -c -k --keepParent "$app" "${{ matrix.asset }}.zip"
+          sed "s/__VERSION__/$VERSION/g" src/RobotRally.Desktop/macos/Info.plist > "$RUNNER_TEMP/Info.plist"
+          vpk pack --packId RobotRally --packVersion $VERSION --packTitle "Robot Rally" \
+            --packDir publish --mainExe RobotRally.Desktop \
+            --icon src/RobotRally.Desktop/icons/robot-rally.icns --plist "$RUNNER_TEMP/Info.plist" \
+            --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }}
+
+      - name: Package for Linux
+        if: startsWith(matrix.rid, 'linux')
+        run: >
+          vpk pack --packId RobotRally --packVersion $VERSION --packTitle "Robot Rally"
+          --packDir publish --mainExe RobotRally.Desktop
+          --icon src/RobotRally.Desktop/icons/robot-rally.png
+          --runtime ${{ matrix.rid }} --channel ${{ matrix.channel }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}.*
+          name: robotrally-${{ matrix.rid }}
+          path: Releases/*
           if-no-files-found: error
 
-  release:
-    needs: build
+  publish:
+    needs: package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          path: assets
-          merge-multiple: true
+          path: artifacts
+
+      # Keep the installers and the update feed (releases.<channel>.json plus the .nupkg packages: installed copies
+      # read these from the latest release, so they must stay). Drop the Squirrel-era RELEASES files and the
+      # assets.<channel>.json notes for `vpk upload`, which nothing here reads.
+      - name: Gather the files
+        run: |
+          mkdir -p Releases
+          find artifacts -type f -exec cp -n {} Releases/ \;
+          rm -f Releases/RELEASES Releases/RELEASES-* Releases/assets.*.json
+          ls -la Releases
+
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ls -la assets
-          gh release create "v$VERSION" assets/* \
+          gh release create "v$VERSION" Releases/* \
             --target "$GITHUB_SHA" \
             --title "Robot Rally $VERSION" \
             --notes-file .github/release-notes.md \

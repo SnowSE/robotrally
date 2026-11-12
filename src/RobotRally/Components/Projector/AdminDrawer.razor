@@ -11,6 +11,8 @@
 
     <p class="drawer-phase">Now showing: <strong>@PhaseLabel</strong></p>
 
+    <UpdateNotice />
+
     <div class="drawer-actions">
         @switch (Game.Phase)
         {
@@ -103,7 +105,13 @@
         </ul>
     </section>
 
-    <p class="drawer-keys">Esc: show or hide controls · Space or →: next demo step · F: full screen</p>
+    <p class="drawer-keys">
+        Esc: show or hide controls · Space or →: next demo step · F: full screen
+        @if (Services.GetService<IDesktopShell>() is { } desktop)
+        {
+            <br />@($"Robot Rally {desktop.Version}")
+        }
+    </p>
 </aside>
 
 @code {

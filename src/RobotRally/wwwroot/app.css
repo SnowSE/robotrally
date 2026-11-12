@@ -608,6 +608,22 @@ body.dragging .trash-zone { display: block; }
 .dp-remove.sure { background: var(--curb); color: var(--chalk); }
 .drawer-keys { margin: auto 0 0; font-size: 14px; color: #6b7088; }
 
+/* Desktop app: an update is downloaded and waiting for a restart. */
+.update-notice {
+    display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px;
+    background: var(--ink); color: var(--chalk); font-size: 17px; font-weight: 800;
+}
+.update-notice.compact {
+    position: fixed; left: 14px; bottom: 14px; z-index: 80; max-width: 380px; /* the corner the projector footer leaves free */
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 10px 8px 16px; border-radius: 24px;
+    background: rgba(29, 29, 43, .82); box-shadow: 0 4px 0 rgba(0, 0, 0, .25); animation: pop-in .35s ease-out;
+}
+.un-actions { display: flex; gap: 8px; }
+.un-go, .un-later { border: 0; border-radius: 999px; padding: 6px 14px; font: 900 15px var(--body); cursor: pointer; }
+.un-go { background: var(--sun); color: var(--ink); }
+.un-later { background: rgba(255, 255, 255, .16); color: var(--chalk); }
+.un-note { font-size: 14px; font-weight: 600; opacity: .8; }
+
 /* login */
 .login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 .login-card {

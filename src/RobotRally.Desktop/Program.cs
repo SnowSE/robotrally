@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Photino.NET;
+using Velopack;
 using RobotRally.Services;
 
 namespace RobotRally.Desktop;
@@ -22,6 +22,9 @@ internal static class Program
     [STAThread] // the Windows web view needs it
     private static void Main(string[] args)
     {
+        // Must come first: right after an update installs, this finishes the job (and may exit instead of returning).
+        VelopackApp.Build().Run();
+
         var shell = new DesktopShell();
         WebApplication? app = null;
         try
@@ -32,6 +35,8 @@ internal static class Program
                 {
                     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
                     builder.Services.AddSingleton<IDesktopShell>(shell);
+                    builder.Services.AddSingleton(shell);
+                    builder.Services.AddHostedService<DesktopUpdates>();
                 }, contentRoot: ContentRoot());
                 try
                 {
@@ -69,6 +74,7 @@ internal static class Program
         });
         window.WaitForClose();
 
+        shell.ApplyOnExit();
         app.StopAsync().GetAwaiter().GetResult();
     }
 
@@ -109,17 +115,5 @@ internal static class Program
                 <div><h1 style="margin: 0 0 12px">🏁 Robot Rally couldn't start</h1><p>{{message}}</p></div>
                 """)
             .WaitForClose();
-    }
-}
-
-/// <summary>Lets the projector controls open the racer page in this computer's browser.</summary>
-internal sealed class DesktopShell : IDesktopShell
-{
-    public string LocalUrl { get; set; } = "http://localhost:5000";
-
-    public void OpenRacer()
-    {
-        try { Process.Start(new ProcessStartInfo(LocalUrl) { UseShellExecute = true }); }
-        catch { /* no default browser: the kids-go-to address is on screen anyway */ }
     }
 }
