@@ -9,7 +9,7 @@ Robot Rally as a desktop app. Install it once and it keeps itself up to date: ne
 
 There are also `-Portable.zip` builds for Windows and Mac that run from a folder without installing (they update too). The `releases.*.json` and `.nupkg` files are how installed copies find and download updates; they aren't for downloading by hand.
 
-The projector page opens in its own window, already logged in. Kids on other computers on the same network go to the address shown on the screen. To play on the same computer, click **🧒 Race on this computer too** under the join address (it opens the racer page in your web browser).
+The projector page opens in its own window, already logged in. Kids on other computers on the same network go to the address shown on the screen. To play on the same computer, click **🧒 Race on this computer too** under the join address (it opens a racer window in front of the projector).
 
 **First run (the app isn't code-signed):**
 - **Windows:** if you see "Windows protected your PC", click **More info → Run anyway**. When Windows Firewall asks, click **Allow** so other computers can join.

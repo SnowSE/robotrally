@@ -13,7 +13,7 @@
             <span class="join-url">@Join.Display</span>
             @if (Services.GetService<IDesktopShell>() is { } shell)
             {
-                @* Desktop app only: someone at this computer can race too (opens the racer page in the browser). *@
+                @* Desktop app only: someone at this computer can race too (opens a racer window). *@
                 <button type="button" class="join-play" @onclick="shell.OpenRacer">🧒 Race on this computer too</button>
             }
         </div>

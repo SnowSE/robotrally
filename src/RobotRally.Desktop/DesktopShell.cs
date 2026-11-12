@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Photino.NET;
 using RobotRally.Services;
 using Velopack;
 
@@ -13,6 +14,9 @@ internal sealed class DesktopShell : IDesktopShell
 
     public string LocalUrl { get; set; } = "http://localhost:5000";
 
+    /// <summary>The projector window, once it exists. Racer windows open on top of it.</summary>
+    public PhotinoWindow? Window { get; set; }
+
     public string Version { get; } = CurrentVersion();
 
     public string? UpdateReady
@@ -22,7 +26,36 @@ internal sealed class DesktopShell : IDesktopShell
 
     public event Action? UpdateReadyChanged;
 
+    /// <summary>Opens the racer page in a second Robot Rally window. Not the web browser: the desktop keeps the
+    /// window you clicked in front, so a browser opened from here lands behind the projector, where nobody sees it.</summary>
     public void OpenRacer()
+    {
+        if (Window is not { } main)
+        {
+            OpenInBrowser();
+            return;
+        }
+        // Photino builds windows on the UI thread (the one running the projector window), and this is a Blazor thread.
+        main.Invoke(() =>
+        {
+            try
+            {
+                new PhotinoWindow(main)
+                    .SetTitle("Robot Rally · Racer")
+                    .SetUseOsDefaultSize(false)
+                    .SetSize(1280, 800)
+                    .Center()
+                    .Load(new Uri(LocalUrl))
+                    .WaitForClose(); // for a second window this just opens it: the projector window runs the loop
+            }
+            catch
+            {
+                OpenInBrowser();
+            }
+        });
+    }
+
+    private void OpenInBrowser()
     {
         try { Process.Start(new ProcessStartInfo(LocalUrl) { UseShellExecute = true }); }
         catch { /* no default browser: the kids-go-to address is on screen anyway */ }
