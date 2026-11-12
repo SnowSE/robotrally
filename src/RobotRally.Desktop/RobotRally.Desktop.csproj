@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Robot Rally as a desktop app: runs the game server in-process and shows the projector page in a native window.
+       Kids on other computers still join with a browser. Released by .github/workflows/release.yml. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>RobotRally.Desktop</AssemblyName>
+    <RootNamespace>RobotRally.Desktop</RootNamespace>
+    <Product>Robot Rally</Product>
+    <!-- No IIS here: skip the generated web.config. -->
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+  </PropertyGroup>
+
+  <!-- Publishing for a platform (dotnet publish -r win-x64 / osx-arm64 / linux-x64) makes a self-contained app: no .NET
+       install needed. Everything is in one executable except wwwroot and the static-asset manifest next to it
+       (publish writes those after the single file is bundled). -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+    <!-- RobotRally is an app too, but here it is only used as a library (this app hosts it). -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
+    <ProjectReference Include="..\RobotRally\RobotRally.csproj" />
+  </ItemGroup>
+
+  <!-- Leave out the referenced projects' debug symbols, the development settings, and the web project's own launcher
+       files (the Mac packaging step leaves out its apphost, which publish adds later). -->
+  <Target Name="TrimPublishedExtras" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' != ''">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb' Or '%(Filename)%(Extension)' == 'appsettings.Development.json' Or '%(Filename)%(Extension)' == 'RobotRally' Or '%(Filename)%(Extension)' == 'RobotRally.exe' Or '%(Filename)%(Extension)' == 'RobotRally.runtimeconfig.json'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

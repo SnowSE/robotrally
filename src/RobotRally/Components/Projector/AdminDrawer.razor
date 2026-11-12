@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject GameService Game
 @inject JoinInfo Join
+@inject IServiceProvider Services
 
 <aside class="drawer @(Open ? "open" : "")" aria-hidden="@(Open ? "false" : "true")">
     <header class="drawer-head">
@@ -72,6 +73,10 @@
         @foreach (var url in Join.Urls)
         {
             <code>@url</code>
+        }
+        @if (Services.GetService<IDesktopShell>() is { } shell)
+        {
+            <button type="button" class="btn btn-quiet" @onclick="shell.OpenRacer">🧒 Race on this computer too</button>
         }
     </section>
 

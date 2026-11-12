@@ -593,6 +593,7 @@ body.dragging .trash-zone { display: block; }
 .confirm p { margin: 0; }
 .drawer h3 { font-family: var(--display); font-size: 22px; margin-bottom: 6px; }
 .drawer-join code { display: block; font-size: 18px; background: var(--mist); padding: 6px 10px; border-radius: 8px; margin-bottom: 4px; }
+.drawer-join .btn { margin-top: 6px; width: 100%; font-size: 18px; text-align: left; }
 .drawer-players ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .drawer-players li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 10px; background: var(--mist); }
 .dp-name { flex: 1; font-weight: 900; }

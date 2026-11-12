@@ -14,7 +14,13 @@ Kids program a racer through 10 grid mazes by dragging blocks (Forward, Turn, Re
 | ![Big trophy celebration after beating every level](docs/screenshots/kid-champion.png) **Beat every level:** a big celebration first… | ![Podium with the top three racers and their points, plus everyone else below](docs/screenshots/projector-podium.png) **Winners:** the podium by points, and everyone else below it. |
 | ![My levels: each level with its points, star status, the kid's program, and Play again](docs/screenshots/kid-my-levels.png) **…then My levels:** see your winning programs and replay any level for more points. | |
 
-## Run it
+## Desktop app
+
+The easiest way to run a session: download Robot Rally for your computer from the [latest release](https://github.com/SnowSE/robotrally/releases/latest) (Windows, Mac, or Linux; no .NET install needed), unzip it, and run it. The projector page opens in its own window, already logged in, and kids on other computers join at the address it shows. It uses port 5000, or the next free port if something else has it (the address on screen shows which). **🧒 Race on this computer too** in the controls (Esc) opens the racer page in this computer's browser. The release notes cover the first-run warnings (the app isn't code-signed). Closing the window ends the game.
+
+Every push to `main` runs the tests and publishes a new release (`v1.0.<build number>`) through `.github/workflows/release.yml`. The desktop app (`src/RobotRally.Desktop`) is a thin shell: it runs the same server in-process (`RobotRallyServer.Create`) and shows `/admin` in a [Photino](https://www.tryphotino.io/) window, which uses the system's web view (WebView2, WKWebView, or WebKitGTK). To build one yourself: `dotnet publish src/RobotRally.Desktop -c Release -r linux-x64 -o out` (or `win-x64`, `osx-arm64`, `osx-x64`).
+
+## Run it from source
 
 For the event, run it in Production. This turns off the practice-bot endpoint and the detailed error pages:
 

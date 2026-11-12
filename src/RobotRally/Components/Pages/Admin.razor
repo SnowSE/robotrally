@@ -3,6 +3,7 @@
 @inject GameService Game
 @inject AdminAuth Auth
 @inject IJSRuntime Js
+@inject NavigationManager Nav
 
 <PageTitle>Robot Rally · Projector</PageTitle>
 
@@ -56,6 +57,10 @@ else
 
 @code {
     private const string TokenKey = "rr-admin";
+
+    /// <summary>The desktop app opens its window with a ready-made admin token, so its owner skips the password.</summary>
+    [SupplyParameterFromQuery(Name = "key")] public string? Key { get; set; }
+
     private bool _checked, _authed, _bad, _drawer;
     private string _password = "";
     private ScriptedDemo? _scripted;
@@ -65,7 +70,16 @@ else
     {
         if (!firstRender) return;
         string? token = null;
-        try { token = await Js.InvokeAsync<string?>("rally.store.get", TokenKey); } catch { }
+        if (Auth.IsValid(Key))
+        {
+            token = Key;
+            try { await Js.InvokeVoidAsync("rally.store.set", TokenKey, token); } catch { }
+            Nav.NavigateTo("/admin", replace: true); // keep the key out of the address
+        }
+        else
+        {
+            try { token = await Js.InvokeAsync<string?>("rally.store.get", TokenKey); } catch { }
+        }
         _authed = Auth.IsValid(token);
         _checked = true;
         if (_authed) await Start();

@@ -23,5 +23,13 @@ public sealed class AdminAuth(IConfiguration config)
         return token;
     }
 
+    /// <summary>A token without the password, for the desktop app's own window (it runs the server, so it is the admin).</summary>
+    public string IssueToken()
+    {
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+        _tokens[token] = 0;
+        return token;
+    }
+
     public bool IsValid(string? token) => token is not null && _tokens.ContainsKey(token);
 }
