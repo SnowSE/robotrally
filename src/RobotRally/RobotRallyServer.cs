@@ -17,6 +17,9 @@ public static class RobotRallyServer
         // ApplicationName stays the launching app's name: the static-asset manifest is named after it, and the desktop
         // app's manifest already includes everything from this project.
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = contentRoot });
+        // Serve framework files like _framework/blazor.web.js when running from source (dotnet run) in any environment,
+        // not just Development. Published builds don't have the runtime manifest this reads, so there it does nothing.
+        builder.WebHost.UseStaticWebAssets();
 
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents(o => o.DetailedErrors = builder.Environment.IsDevelopment());
