@@ -444,6 +444,12 @@ body.dragging .trash-zone { display: block; }
 .join-card::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 12px; border-radius: 0 0 28px 28px; background: var(--curb-stripe); }
 .join-label { font-size: 28px; opacity: .85; }
 .join-url { font-family: var(--display); font-size: 72px; color: var(--sun); letter-spacing: .01em; }
+.join-play {
+    justify-self: start; margin-top: 6px; padding: 6px 18px; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--chalk); color: var(--ink); font: 900 22px var(--body); box-shadow: 0 4px 0 rgba(0, 0, 0, .3);
+}
+.join-play:hover { background: var(--sun); }
+.join-play:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
 .parking { display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 22px 34px; padding: 20px 0; }
 .parked { display: grid; justify-items: center; gap: 6px; animation: drive-in .7s cubic-bezier(.3, 1.4, .5, 1) both; }
 .pj-empty { font-family: var(--display); font-size: 44px; color: var(--chalk); opacity: .8; }

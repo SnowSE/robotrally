@@ -1,4 +1,4 @@
-Robot Rally as a desktop app. Download the file for your computer, unzip it (Windows, Mac), and run **Robot Rally**. The projector page opens in its own window, already logged in. Kids on other computers on the same network go to the address shown on the screen. To play on the same computer, open the controls (Esc) and choose **🧒 Race on this computer too**.
+Robot Rally as a desktop app. Download the file for your computer, unzip it (Windows, Mac), and run **Robot Rally**. The projector page opens in its own window, already logged in. Kids on other computers on the same network go to the address shown on the screen. To play on the same computer, click **🧒 Race on this computer too** under the join address (it opens the racer page in your web browser).
 
 | Computer | Download |
 |---|---|

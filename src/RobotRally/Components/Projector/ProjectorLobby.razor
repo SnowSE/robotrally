@@ -2,6 +2,7 @@
 @inject GameService Game
 @inject JoinInfo Join
 @inject ArenaHost Host
+@inject IServiceProvider Services
 @inject IJSRuntime Js
 
 <div class="pj-lobby">
@@ -10,6 +11,11 @@
         <div class="join-card">
             <span class="join-label">On your computer, go to</span>
             <span class="join-url">@Join.Display</span>
+            @if (Services.GetService<IDesktopShell>() is { } shell)
+            {
+                @* Desktop app only: someone at this computer can race too (opens the racer page in the browser). *@
+                <button type="button" class="join-play" @onclick="shell.OpenRacer">🧒 Race on this computer too</button>
+            }
         </div>
     </header>
 

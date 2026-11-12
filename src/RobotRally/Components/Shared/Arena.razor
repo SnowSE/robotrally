@@ -15,7 +15,11 @@
             <div class="hill-read">
                 @if (holder is null)
                 {
-                    <span class="hill-call">👑 Drive in<br />to rule the hill!</span>
+                    @* With nobody here yet, the projector shows its own empty message in this spot. *@
+                    @if (Players.Count > 0)
+                    {
+                        <span class="hill-call">👑 Drive in<br />to rule the hill!</span>
+                    }
                 }
                 else
                 {
