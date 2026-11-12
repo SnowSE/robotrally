@@ -402,6 +402,16 @@ window.rally = (() => {
     };
   })();
 
+  // ---------- links inside the desktop app ----------
+  // The desktop app's windows (Photino, which adds window.external.sendMessage) ignore links that open a new tab, so
+  // ask the app to open them in a window of their own. In an ordinary browser this does nothing.
+  document.addEventListener('click', e => {
+    const a = e.target.closest?.('a[target="_blank"]');
+    if (!a || typeof window.external?.sendMessage !== 'function') return;
+    e.preventDefault();
+    window.external.sendMessage(JSON.stringify({ open: a.href, title: a.dataset.appWindow || 'Robot Rally' }));
+  }, true);
+
   // ---------- projector stage scaling ----------
   function fitStage() {
     const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);

@@ -595,6 +595,20 @@ body.dragging .trash-zone { display: block; }
 .drawer-note { margin: 0; }
 .drawer-switch { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 900; cursor: pointer; margin-bottom: 4px; }
 .drawer-switch input { width: 22px; height: 22px; accent-color: var(--turf-dark); }
+.drawer-switch input.drawer-minutes { width: 64px; height: auto; padding: 4px 8px; font: inherit; border: 2px solid #c9ccd8; border-radius: 8px; }
+
+/* Finish screen: the Block Bot invitation. */
+.done-speed { margin: 0; font-family: var(--display); font-size: 36px; color: var(--sun); text-shadow: 0 4px 0 rgba(0, 0, 0, .3); animation: pop-in .5s ease-out .4s both; }
+.next-up {
+    display: flex; align-items: center; gap: 18px; margin: 0 0 18px; padding: 16px 20px; border-radius: 20px;
+    background: var(--asphalt); color: var(--chalk); box-shadow: 0 6px 0 rgba(0, 0, 0, .22);
+}
+.next-up.quick { background: linear-gradient(120deg, #3a2f7a, var(--asphalt) 70%); box-shadow: 0 6px 0 rgba(0, 0, 0, .22), inset 0 0 0 3px var(--sun); }
+.next-icon { font-size: 56px; line-height: 1; }
+.next-text { flex: 1; min-width: 0; }
+.next-text h2 { margin: 0 0 4px; font-family: var(--display); font-weight: 400; font-size: 28px; color: var(--sun); }
+.next-text p { margin: 0; font-size: 18px; line-height: 1.35; }
+.next-go { flex: none; text-decoration: none; white-space: nowrap; }
 .confirm { background: #fff1f1; border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
 .confirm p { margin: 0; }
 .drawer h3 { font-family: var(--display); font-size: 22px; margin-bottom: 6px; }

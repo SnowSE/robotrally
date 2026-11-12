@@ -70,6 +70,17 @@
         <p class="drawer-note">Kids race to hold the circle in the middle of the lobby. Turn it off if it gets too wild.</p>
     </section>
 
+    <section class="drawer-settings">
+        <h3>Finishers</h3>
+        <label class="drawer-switch">
+            <span>⚡ Quick finish:</span>
+            <input type="number" class="drawer-minutes" min="1" max="60" value="@((int)Game.QuickFinish.TotalMinutes)"
+                   @onchange="e => { if (int.TryParse(e.Value?.ToString(), out var m)) Game.SetQuickFinish(TimeSpan.FromMinutes(m)); }" />
+            <span>minutes</span>
+        </label>
+        <p class="drawer-note">Everyone who beats all @Game.Levels.Count levels is invited to try Block Bot (Badger Brawl). Kids who do it this fast get a speed shout-out too.</p>
+    </section>
+
     <section class="drawer-join">
         <h3>Kids go to</h3>
         @foreach (var url in Join.Urls)

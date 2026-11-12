@@ -60,6 +60,61 @@ public class GameServiceTests
     }
 
     [Fact]
+    public void FinishTime_CountsFromRaceStart_AndAFastFinishIsQuick()
+    {
+        var p = Join();
+        StartRace();
+        Assert.Null(_game.FinishTime(p));
+        for (var i = 0; i < Levels.All.Count; i++) Solve(p);
+
+        var time = _game.FinishTime(p)!.Value;
+        Assert.Equal(p.FinishedAt!.Value - _game.RaceStartedAt!.Value, time);
+        Assert.True(time < GameService.DefaultQuickFinish);
+        Assert.True(_game.FinishedQuickly(p));
+    }
+
+    [Fact]
+    public void SlowFinish_IsNotQuick()
+    {
+        var p = Join();
+        StartRace();
+        _time.Advance(GameService.DefaultQuickFinish);
+        for (var i = 0; i < Levels.All.Count; i++) Solve(p);
+        Assert.True(p.Finished);
+        Assert.False(_game.FinishedQuickly(p));
+    }
+
+    [Fact]
+    public void LateJoiner_IsTimedFromWhenTheyJoined()
+    {
+        Join();
+        StartRace();
+        _time.Advance(TimeSpan.FromMinutes(14));
+        var late = Join();
+        var joined = _time.GetUtcNow();
+        for (var i = 0; i < Levels.All.Count; i++) Solve(late);
+
+        Assert.Equal(late.FinishedAt!.Value - joined, _game.FinishTime(late));
+        Assert.True(_game.FinishedQuickly(late));
+    }
+
+    [Fact]
+    public void QuickFinish_AdminCanChangeIt_WithinLimits()
+    {
+        var changes = 0;
+        _game.Changed += () => changes++;
+        Assert.Equal(GameService.DefaultQuickFinish, _game.QuickFinish);
+        _game.SetQuickFinish(TimeSpan.FromMinutes(8));
+        Assert.Equal(TimeSpan.FromMinutes(8), _game.QuickFinish);
+        _game.SetQuickFinish(TimeSpan.FromMinutes(8));
+        Assert.Equal(1, changes);
+        _game.SetQuickFinish(TimeSpan.Zero);
+        Assert.Equal(TimeSpan.FromMinutes(1), _game.QuickFinish);
+        _game.SetQuickFinish(TimeSpan.FromHours(5));
+        Assert.Equal(TimeSpan.FromMinutes(60), _game.QuickFinish);
+    }
+
+    [Fact]
     public void KingOfTheHill_IsOnByDefault_AdminCanToggleIt_AndResetKeepsTheChoice()
     {
         var changes = 0;

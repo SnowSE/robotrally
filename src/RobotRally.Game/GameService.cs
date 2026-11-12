@@ -17,6 +17,8 @@ public sealed class GameService
     public static readonly TimeSpan CountdownTime = TimeSpan.FromSeconds(3.6);
     /// <summary>Kids in this slice at the back of the pack get a 💡 Hint button.</summary>
     public const double HintShare = 0.3;
+    /// <summary>Beat all the levels this fast and the finish screen gives you a speed shout-out.</summary>
+    public static readonly TimeSpan DefaultQuickFinish = TimeSpan.FromMinutes(15);
 
     private readonly object _gate = new();
     private readonly TimeProvider _time;
@@ -43,6 +45,8 @@ public sealed class GameService
     public int Session { get; private set; } = 1;
     /// <summary>Lobby King of the Hill (hold the circle in the middle of the bumper-car floor). The admin can turn it off.</summary>
     public bool KingOfTheHill { get; private set; } = true;
+    /// <summary>How fast counts as a quick finish (see <see cref="FinishedQuickly"/>). The admin can change it.</summary>
+    public TimeSpan QuickFinish { get; private set; } = DefaultQuickFinish;
     public DateTimeOffset Now => _time.GetUtcNow();
 
     public IReadOnlyList<Player> Players
@@ -98,6 +102,16 @@ public sealed class GameService
         }
         Notify();
     }
+
+    /// <summary>How long a racer took to beat every level: from the race start, or from when they joined if they came
+    /// in late. Null until they've finished.</summary>
+    public TimeSpan? FinishTime(Player p)
+    {
+        if (p.FinishedAt is not { } finished || RaceStartedAt is not { } started) return null;
+        return finished - (p.JoinedAt > started ? p.JoinedAt : started);
+    }
+
+    public bool FinishedQuickly(Player p) => FinishTime(p) is { } time && time <= QuickFinish;
 
     public Level? CurrentLevel(Player p) => p.LevelIndex < Levels.Count ? Levels[p.LevelIndex] : null;
 
@@ -260,6 +274,18 @@ public sealed class GameService
     }
 
     // ---- Admin controls ----
+
+    /// <summary>Sets the quick-finish time, kept between 1 and 60 minutes.</summary>
+    public void SetQuickFinish(TimeSpan time)
+    {
+        time = TimeSpan.FromMinutes(Math.Clamp(Math.Round(time.TotalMinutes), 1, 60));
+        lock (_gate)
+        {
+            if (QuickFinish == time) return;
+            QuickFinish = time;
+        }
+        Notify();
+    }
 
     public void SetKingOfTheHill(bool on)
     {

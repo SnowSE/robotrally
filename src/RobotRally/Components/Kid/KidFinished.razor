@@ -11,6 +11,10 @@
         <div class="done-racer"><CharacterIcon Look="Player.Look" Class="dance" Size="100%" Angle="-90" /></div>
         <div class="nick-pill big">@Player.Nickname</div>
         <p class="done-place">@Player.Score.ToString("N0") points · <strong>@Ordinal(Game.PlaceOf(Player))</strong> place right now</p>
+        @if (Game.FinishedQuickly(Player) && Game.FinishTime(Player) is { } fast)
+        {
+            <p class="done-speed">⚡ All @Game.Levels.Count levels in @Duration(fast)!</p>
+        }
         <button type="button" class="btn btn-go" @onclick="EndParty" @onclick:stopPropagation="true">See my levels ▶</button>
     </div>
 }
@@ -24,6 +28,23 @@ else
                 <p class="my-sub">⭐ <b>@Player.Score.ToString("N0")</b> points · <b>@Ordinal(Game.PlaceOf(Player))</b> place. Replay a level to grab stars or beat your points.</p>
             </div>
         </header>
+        @* Everyone who beats every level gets invited to something bigger; quick finishers get a speed shout-out too. *@
+        @{ var quick = Game.FinishedQuickly(Player) ? Game.FinishTime(Player) : null; }
+        <aside class="next-up @(quick is null ? "" : "quick")">
+            <div class="next-icon" aria-hidden="true">🦡</div>
+            <div class="next-text">
+                @if (quick is { } time)
+                {
+                    <h2>⚡ All @Game.Levels.Count levels in @Duration(time)! You're ready for something bigger.</h2>
+                }
+                else
+                {
+                    <h2>🚀 Ready for something a bit more involved?</h2>
+                }
+                <p>Try <b>Block Bot</b> in <b>Badger Brawl</b>: snap blocks together into a bot that runs a whole clan of badgers in a real-time strategy game. Gather food, build an army, and battle other people's bots.</p>
+            </div>
+            <a class="btn btn-go next-go" href="@BlockBotUrl" target="_blank" rel="noopener" data-app-window="Block Bot">Try Block Bot ↗</a>
+        </aside>
         <div class="my-grid">
             @foreach (var level in Game.Levels)
             {
@@ -125,6 +146,13 @@ else
     }
 
     public void Dispose() => _partyTimer?.Cancel();
+
+    /// <summary>Badger Brawl's block-programming page: the next step up from Robot Rally.</summary>
+    public const string BlockBotUrl = "https://netrts.snowse.io/#/blocks";
+
+    /// <summary>"11 min 32 sec", or "48 sec" under a minute.</summary>
+    public static string Duration(TimeSpan t) =>
+        t.TotalMinutes >= 1 ? $"{(int)t.TotalMinutes} min {t.Seconds} sec" : $"{t.Seconds} sec";
 
     public static string Ordinal(int n) => n switch
     {

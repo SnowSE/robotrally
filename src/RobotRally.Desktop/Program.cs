@@ -67,6 +67,7 @@ internal static class Program
             .SetUseOsDefaultSize(false)
             .SetSize(1200, 750)
             .Center()
+            .RegisterWebMessageReceivedHandler((_, message) => shell.OnWebMessage(message))
             .Load(new Uri($"{shell.LocalUrl}/admin?key={key}"));
         shell.Window = window;
         // If the server is told to stop (logout, shutdown), close the window too instead of leaving a dead page.
