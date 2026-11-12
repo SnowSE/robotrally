@@ -62,10 +62,11 @@ internal static class Program
 
         var window = new PhotinoWindow()
             .SetTitle("Robot Rally")
+            // A normal-sized window, not maximized, so whatever else opens (a browser, the racer window) isn't hidden
+            // behind it. Maximize it, or press F for full screen, when it goes on the projector.
             .SetUseOsDefaultSize(false)
-            .SetSize(1440, 900)
+            .SetSize(1200, 750)
             .Center()
-            .SetMaximized(true)
             .Load(new Uri($"{shell.LocalUrl}/admin?key={key}"));
         shell.Window = window;
         // If the server is told to stop (logout, shutdown), close the window too instead of leaving a dead page.
