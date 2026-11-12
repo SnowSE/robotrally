@@ -9,9 +9,21 @@ public readonly record struct ArenaCar(string Id, double X, double Y, double Ang
 /// <summary>Two cars bumped at (X, Y). Strength is the closing speed, in arena units per second.</summary>
 public readonly record struct ArenaBump(string A, string B, double X, double Y, double Strength);
 
+/// <summary>King of the Hill: who holds the circle in the middle, and since when (arena clock). Holder is null when the circle is empty.</summary>
+public readonly record struct ArenaHill(string? Holder, double Since);
+
+/// <summary>The circle changed hands. <see cref="KnockedBy"/> is set when <see cref="Previous"/> was bumped out
+/// (by that car) rather than driving out. <see cref="Reign"/> is how long <see cref="Previous"/> held it, in seconds.</summary>
+public readonly record struct HillChange(string? Holder, string? Previous, string? KnockedBy, double Reign);
+
+/// <summary>A racer's longest reign on the hill.</summary>
+public readonly record struct HillRecord(string Id, double Seconds);
+
 /// <summary><see cref="Time"/> is the arena's own clock in seconds (it pauses while the arena is parked), so screens
-/// can blend smoothly between frames however unevenly the frames arrive.</summary>
-public sealed record ArenaFrame(long Seq, double Time, IReadOnlyList<ArenaCar> Cars, IReadOnlyList<ArenaBump> Bumps);
+/// can blend smoothly between frames however unevenly the frames arrive. <see cref="Hill"/> is null while
+/// King of the Hill is turned off.</summary>
+public sealed record ArenaFrame(long Seq, double Time, IReadOnlyList<ArenaCar> Cars, IReadOnlyList<ArenaBump> Bumps,
+    ArenaHill? Hill, IReadOnlyList<HillChange> HillChanges);
 
 /// <summary>
 /// The lobby's bumper-car floor: every racer is a disc that kids push around with the arrow keys.
@@ -36,11 +48,23 @@ public sealed class LobbyArena(Random? rng = null)
     private const double MaxStep = 1.0 / 60;
     private const double BumpCooldown = 0.3;
 
+    // King of the Hill: the circle in the middle of the floor. A car is in when its center is inside.
+    public const double HillX = Width / 2, HillY = Height / 2, HillRadius = 130;
+    /// <summary>The holder stays in until this far past the edge, so wobbling on the line doesn't flicker the crown.</summary>
+    public const double HillSlack = 10;
+    /// <summary>A holder who leaves within this long of being bumped was knocked out (by that car).</summary>
+    public const double KnockWindow = 1.5;
+    /// <summary>Shorter reigns don't make the Hall of Fame.</summary>
+    public const double MinRecord = 1;
+
     private sealed class Car(string id)
     {
         public string Id { get; } = id;
         public double X, Y, Vx, Vy, Angle, Spin;
         public DriveInput Input;
+        public double? InHillSince;
+        public string? LastHitBy;
+        public double LastHitAt = double.NegativeInfinity;
     }
 
     private readonly object _gate = new();
@@ -49,6 +73,10 @@ public sealed class LobbyArena(Random? rng = null)
     private readonly Dictionary<(string, string), double> _lastBump = [];
     private double _clock;
     private long _seq;
+    private bool _hillOn = true;
+    private string? _holder;
+    private double _holderSince;
+    private readonly Dictionary<string, double> _best = [];
 
     public int Count
     {
@@ -61,7 +89,12 @@ public sealed class LobbyArena(Random? rng = null)
         lock (_gate)
         {
             var keep = ids.ToHashSet();
-            foreach (var gone in _cars.Keys.Where(k => !keep.Contains(k)).ToList()) _cars.Remove(gone);
+            foreach (var gone in _cars.Keys.Where(k => !keep.Contains(k)).ToList())
+            {
+                _cars.Remove(gone);
+                _best.Remove(gone);
+                if (_holder == gone) _holder = null;
+            }
             foreach (var id in keep.Where(k => !_cars.ContainsKey(k)))
             {
                 var car = new Car(id) { Angle = _rng.Next(4) * 90 };
@@ -105,7 +138,103 @@ public sealed class LobbyArena(Random? rng = null)
 
     public ArenaFrame Snapshot()
     {
-        lock (_gate) return Frame([]);
+        lock (_gate) return Frame([], []);
+    }
+
+    // ---- King of the Hill ----
+
+    public bool HillEnabled
+    {
+        get { lock (_gate) return _hillOn; }
+    }
+
+    public ArenaHill? Hill
+    {
+        get { lock (_gate) return _hillOn ? new ArenaHill(_holder, _holderSince) : null; }
+    }
+
+    /// <summary>Turns King of the Hill on or off. Turning it off ends the current reign (it still counts for the Hall of Fame).
+    /// Returns true if anything changed.</summary>
+    public bool SetHillEnabled(bool on)
+    {
+        lock (_gate)
+        {
+            if (_hillOn == on) return false;
+            _hillOn = on;
+            if (!on)
+            {
+                EndReignLocked();
+                foreach (var c in _cars.Values) c.InHillSince = null;
+            }
+            return true;
+        }
+    }
+
+    /// <summary>Ends the current reign (e.g. the race is starting): it's banked for the Hall of Fame and the circle empties.
+    /// Returns true if there was one.</summary>
+    public bool EndReign()
+    {
+        lock (_gate)
+        {
+            if (_holder is null) return false;
+            EndReignLocked();
+            foreach (var c in _cars.Values) c.InHillSince = null;
+            return true;
+        }
+    }
+
+    /// <summary>The longest reigns, one per racer, longest first.</summary>
+    public IReadOnlyList<HillRecord> HallOfFame(int top = 3)
+    {
+        lock (_gate)
+            return _best.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal).Take(top)
+                .Select(kv => new HillRecord(kv.Key, kv.Value)).ToList();
+    }
+
+    private void EndReignLocked()
+    {
+        if (_holder is null) return;
+        Bank(_holder, _clock - _holderSince);
+        _holder = null;
+    }
+
+    private void Bank(string id, double reign)
+    {
+        if (reign < MinRecord || !_cars.ContainsKey(id)) return;
+        if (!_best.TryGetValue(id, out var best) || reign > best) _best[id] = Math.Round(reign, 2);
+    }
+
+    private void UpdateHill(List<HillChange> changes)
+    {
+        if (!_hillOn) return;
+        foreach (var c in _cars.Values)
+        {
+            var d = Math.Sqrt((c.X - HillX) * (c.X - HillX) + (c.Y - HillY) * (c.Y - HillY));
+            var limit = c.Id == _holder ? HillRadius + HillSlack : HillRadius;
+            if (d <= limit) c.InHillSince ??= _clock;
+            else c.InHillSince = null;
+        }
+
+        Car? holder = _holder is { } h && _cars.TryGetValue(h, out var hc) && hc.InHillSince is not null ? hc : null;
+        if (holder is not null) return;
+
+        // The circle is up for grabs: whoever has been inside longest takes it.
+        var next = _cars.Values.Where(c => c.InHillSince is not null)
+            .OrderBy(c => c.InHillSince).ThenBy(c => c.Id, StringComparer.Ordinal).FirstOrDefault();
+        var previous = _holder;
+        if (previous is null && next is null) return;
+
+        string? knockedBy = null;
+        var reign = 0.0;
+        if (previous is not null)
+        {
+            reign = Math.Round(_clock - _holderSince, 2);
+            Bank(previous, reign);
+            if (_cars.TryGetValue(previous, out var prev) && _clock - prev.LastHitAt <= KnockWindow) knockedBy = prev.LastHitBy;
+        }
+        _holder = next?.Id;
+        _holderSince = _clock;
+        changes.Add(new HillChange(_holder, previous, knockedBy, reign));
     }
 
     /// <summary>Advances the physics by <paramref name="seconds"/> (in small sub-steps) and returns the new frame.</summary>
@@ -121,12 +250,15 @@ public sealed class LobbyArena(Random? rng = null)
                 SubStep(dt, bumps);
                 left -= dt;
             }
-            return Frame(bumps);
+            var changes = new List<HillChange>();
+            UpdateHill(changes);
+            return Frame(bumps, changes);
         }
     }
 
-    private ArenaFrame Frame(List<ArenaBump> bumps) =>
-        new(++_seq, Math.Round(_clock, 4), _cars.Values.Select(c => new ArenaCar(c.Id, Math.Round(c.X, 1), Math.Round(c.Y, 1), Math.Round(c.Angle, 1))).ToList(), bumps);
+    private ArenaFrame Frame(List<ArenaBump> bumps, List<HillChange> changes) =>
+        new(++_seq, Math.Round(_clock, 4), _cars.Values.Select(c => new ArenaCar(c.Id, Math.Round(c.X, 1), Math.Round(c.Y, 1), Math.Round(c.Angle, 1))).ToList(), bumps,
+            _hillOn ? new ArenaHill(_holder, Math.Round(_holderSince, 4)) : null, changes);
 
     private void SubStep(double dt, List<ArenaBump> bumps)
     {
@@ -215,6 +347,8 @@ public sealed class LobbyArena(Random? rng = null)
         b.Vx += j * nx; b.Vy += j * ny;
 
         if (closing < BumpSpeed) return;
+        // Remember who hit whom, so knocking the holder off the hill gets credited.
+        (a.LastHitBy, a.LastHitAt, b.LastHitBy, b.LastHitAt) = (b.Id, _clock, a.Id, _clock);
         // Glancing hits spin the cars a little (direction from the side they were hit on).
         var tangent = (a.Vx - b.Vx) * -ny + (a.Vy - b.Vy) * nx;
         var spin = Math.Clamp(closing * 0.9, 120, 600) * (tangent >= 0 ? 1 : -1);

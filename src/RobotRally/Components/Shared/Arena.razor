@@ -3,10 +3,32 @@
 @inject ArenaHost Host
 @inject IJSRuntime Js
 
-<div class="arena @Class" @ref="_el">
+<div class="arena @Class @(_hill is null ? "" : "hill-on")" @ref="_el" data-record="@RecordText">
     <div class="arena-floor" aria-hidden="true">
         <span class="arena-logo">Robot Rally</span>
     </div>
+    @if (_hill is { } hill)
+    {
+        var holder = hill.Holder is { } h ? Players.FirstOrDefault(p => p.Id == h) : null;
+        <div class="arena-hill @(holder is null ? "empty" : "held")" style="@HillStyle(holder)">
+            <div class="hill-ring"></div>
+            <div class="hill-read">
+                @if (holder is null)
+                {
+                    <span class="hill-call">👑 Drive in<br />to rule the hill!</span>
+                }
+                else
+                {
+                    <span class="hill-time">0:00</span>
+                    <span class="hill-name">@(holder.Id == MeId ? "You!" : holder.Nickname)</span>
+                }
+            </div>
+        </div>
+        @if (MeId is not null && hill.Holder == MeId)
+        {
+            <div class="hill-me">👑 You rule the hill! <span class="hill-time">0:00</span></div>
+        }
+    }
     @foreach (var p in Players)
     {
         <div @key="p.Id" class="arena-car @(p.Id == MeId ? "me" : "")" data-id="@p.Id">
@@ -27,8 +49,31 @@
     [Parameter] public string? Class { get; set; }
 
     private ElementReference _el;
+    private ArenaHill? _hill;
     private bool _attached, _disposed;
     private int _sending; // 1 while a frame is on its way to the browser: drop frames instead of queueing them
+
+    protected override void OnInitialized()
+    {
+        _hill = Host.Arena.Hill;
+        Host.HillChanged += OnHillChanged;
+    }
+
+    // Holder names and the record live in Blazor; rally.js runs the ticking timer and the effects.
+    private void OnHillChanged() => _ = InvokeAsync(() =>
+    {
+        if (_disposed) return;
+        _hill = Host.Arena.Hill;
+        StateHasChanged();
+    });
+
+    private string? RecordText =>
+        _hill is not null && Host.Arena.HallOfFame(1) is [var best] && Players.Any(p => p.Id == best.Id)
+            ? best.Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+
+    private static string HillStyle(Player? holder) => FormattableString.Invariant(
+        $"--hill-size: {2 * LobbyArena.HillRadius / LobbyArena.Width * 100:0.##}%; --hill-x: {LobbyArena.HillX / LobbyArena.Width * 100:0.##}%; --hill-y: {LobbyArena.HillY / LobbyArena.Height * 100:0.##}%")
+        + (holder is null ? "" : $"; --hill-color: {holder.Look.Color}");
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -73,6 +118,8 @@
             t = frame.Time,
             cars = frame.Cars.Select(c => new object[] { c.Id, c.X, c.Y, c.Angle }),
             bumps = frame.Bumps.Select(b => new object[] { b.A, b.B, b.X, b.Y, b.Strength }),
+            hill = frame.Hill is { } h ? new object?[] { h.Holder, h.Since } : null,
+            hc = frame.HillChanges.Select(c => new object?[] { c.Holder, c.Previous, c.KnockedBy, c.Reign }),
         };
         try { await Js.InvokeVoidAsync("rally.arena.frame", _el, payload); }
         catch (JSDisconnectedException) { }
@@ -84,6 +131,7 @@
     {
         _disposed = true;
         Host.Frame -= OnFrame;
+        Host.HillChanged -= OnHillChanged;
         if (!_attached) return;
         try { await Js.InvokeVoidAsync("rally.arena.detach", _el); } catch { }
     }

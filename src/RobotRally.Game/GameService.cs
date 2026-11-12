@@ -41,6 +41,8 @@ public sealed class GameService
     public DateTimeOffset? RaceEndedAt { get; private set; }
     /// <summary>Bumps on every reset so pages can tell a new group started.</summary>
     public int Session { get; private set; } = 1;
+    /// <summary>Lobby King of the Hill (hold the circle in the middle of the bumper-car floor). The admin can turn it off.</summary>
+    public bool KingOfTheHill { get; private set; } = true;
     public DateTimeOffset Now => _time.GetUtcNow();
 
     public IReadOnlyList<Player> Players
@@ -258,6 +260,16 @@ public sealed class GameService
     }
 
     // ---- Admin controls ----
+
+    public void SetKingOfTheHill(bool on)
+    {
+        lock (_gate)
+        {
+            if (KingOfTheHill == on) return;
+            KingOfTheHill = on;
+        }
+        Notify();
+    }
 
     public void StartDemo(DemoMode mode)
     {

@@ -22,7 +22,8 @@ else
                 <span class="nick-pill">@Player.Nickname</span>
             </div>
             <p class="lobby-msg">
-                @(Phase == GamePhase.Countdown ? "Get ready…" : "You're in! Drive around and bump your friends.")
+                @(Phase == GamePhase.Countdown ? "Get ready…"
+                    : Game.KingOfTheHill ? "You're in! Bump your friends and rule the 👑 hill." : "You're in! Drive around and bump your friends.")
             </p>
         </header>
         <Arena Players="Game.Players" MeId="@Player.Id" Class="kid-arena" />

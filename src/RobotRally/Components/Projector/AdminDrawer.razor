@@ -58,6 +58,15 @@
         }
     </div>
 
+    <section class="drawer-settings">
+        <h3>Lobby fun</h3>
+        <label class="drawer-switch">
+            <input type="checkbox" checked="@Game.KingOfTheHill" @onchange="e => Game.SetKingOfTheHill(e.Value is true)" />
+            <span>👑 King of the Hill</span>
+        </label>
+        <p class="drawer-note">Kids race to hold the circle in the middle of the lobby. Turn it off if it gets too wild.</p>
+    </section>
+
     <section class="drawer-join">
         <h3>Kids go to</h3>
         @foreach (var url in Join.Urls)

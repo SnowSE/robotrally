@@ -84,6 +84,9 @@ window.rally = (() => {
     star: () => { tone(N.E5 * 2, 0.08, { type: 'triangle', vol: 0.12 }); tone(N.A5 * 2, 0.22, { type: 'triangle', vol: 0.12, delay: 0.07 }); tone(N.E5 * 4, 0.12, { type: 'sine', vol: 0.04, delay: 0.12 }); },
     // Bumper cars: short and soft, because a whole room will be doing it at once.
     boop: () => tone(330 + Math.random() * 90, 0.09, { type: 'sine', to: 170, vol: 0.09 }),
+    // King of the Hill (kid's own machine only).
+    crown: () => seq([[N.G5, .09, 0], [N.C6, .09, .09], [N.E5 * 2, .3, .18]], { type: 'triangle', vol: 0.13 }),
+    uncrown: () => seq([[N.E5, .1, 0], [N.C5, .1, .1], [N.G4, .3, .2]], { type: 'triangle', vol: 0.1 }),
     hint: () => seq([[N.E5, .09, 0], [N.A5, .2, .09]], { type: 'sine', vol: 0.12 }),
     fast: () => tone(500, 0.12, { type: 'triangle', to: 1400, vol: 0.1 }),
     slow: () => tone(900, 0.14, { type: 'triangle', to: 380, vol: 0.1 }),
@@ -170,7 +173,8 @@ window.rally = (() => {
   // which makes the car stop-start about 20 times a second.)
   // Blazor owns the car elements (one per racer, data-id); this only moves them and plays the bump effects.
   const arena = (() => {
-    const W = 1600;
+    const W = 1600, H = 900;
+    const TIER_EVERY = 10;     // seconds on the hill per crown upgrade (max 3)
     const DELAY = 0.09;        // seconds behind the newest frame: covers one late frame
     const KEEP = 12;           // frames kept per board
     const boards = new Map();  // element -> state
@@ -178,7 +182,8 @@ window.rally = (() => {
 
     function attach(el, me, sound) {
       if (!el) return;
-      const st = { me, sound: !!sound, scale: 1, lastBoop: 0, cars: new Map(), snaps: [], offset: null, offsets: [] };
+      const st = { me, sound: !!sound, scale: 1, lastBoop: 0, cars: new Map(), snaps: [], offset: null, offsets: [], pos: new Map(),
+                   king: null, kingSince: null, tier: 0, recordHit: false };
       boards.set(el, st);
       const measure = () => {
         st.scale = el.clientWidth / W;
@@ -215,13 +220,100 @@ window.rally = (() => {
       st.offset = Math.min(...st.offsets);
       const cars = new Map();
       for (const [id, x, y, angle] of f.cars) cars.set(id, [x, y, angle]);
+      const hill = f.hill || null;
       const last = st.snaps[st.snaps.length - 1];
-      if (last && f.t <= last.t) last.cars = cars; // same moment (e.g. a parked arena re-sent): just refresh it
-      else st.snaps.push({ t: f.t, cars });
+      if (last && f.t <= last.t) { last.cars = cars; last.hill = hill; } // same moment (e.g. a parked arena re-sent): just refresh it
+      else st.snaps.push({ t: f.t, cars, hill });
       if (st.snaps.length > KEEP) st.snaps.shift();
 
       // Bump effects wait for the drawing to catch up, so the 💥 lands when the cars visibly touch.
       if (f.bumps?.length) setTimeout(() => bumps(el, st, f.bumps), DELAY * 1000);
+      if (f.hc?.length) setTimeout(() => hillChanges(el, st, f.hc), DELAY * 1000);
+    }
+
+    // ----- King of the Hill -----
+    const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    const place = (node, st, x, y) => { node.style.left = (x * st.scale).toFixed(1) + 'px'; node.style.top = (y * st.scale).toFixed(1) + 'px'; };
+
+    function toast(el, text, big) {
+      el.querySelectorAll('.arena-toast').forEach(x => x.remove());
+      const t = document.createElement('div');
+      t.className = 'arena-toast' + (big ? ' big' : '');
+      t.textContent = text;
+      el.appendChild(t);
+      setTimeout(() => t.remove(), big ? 2200 : 1600);
+    }
+
+    // Runs every screen refresh: crown on the holder, the ticking timer, crown upgrades, and the record.
+    function drawHill(el, st, hill, t) {
+      const holder = hill?.[0] ?? null;
+      const since = hill?.[1] ?? null;
+      const ring = el.querySelector('.arena-hill');
+      if (holder !== st.king || since !== st.kingSince) {
+        if (st.king) car(el, st, st.king)?.classList.remove('king', 't1', 't2', 't3');
+        st.king = holder; st.kingSince = since; st.tier = 0; st.recordHit = false;
+        if (ring) { ring.dataset.tier = '0'; delete ring.dataset.recordHit; }
+      }
+      if (!holder) return;
+      const c = car(el, st, holder);
+      if (c && !c.classList.contains('king')) c.classList.add('king');
+      const secs = Math.max(0, t - since);
+      const text = fmt(secs);
+      for (const x of el.querySelectorAll('.hill-time')) if (x.textContent !== text) x.textContent = text;
+
+      const tier = Math.min(3, Math.floor(secs / TIER_EVERY));
+      if (tier > st.tier) {
+        st.tier = tier;
+        c?.classList.remove('t1', 't2', 't3');
+        c?.classList.add('t' + tier);
+        if (ring) ring.dataset.tier = String(tier);
+        if (holder === st.me) { sfx('star'); toast(el, `👑 ${tier * TIER_EVERY} seconds!`); }
+      }
+      if (ring && ring.dataset.tier !== String(st.tier)) ring.dataset.tier = String(st.tier); // Blazor redrew it
+
+      const record = parseFloat(el.dataset.record);
+      if (!st.recordHit && record > 0 && secs > record) {
+        st.recordHit = true;
+        if (holder === st.me) { sfx('win'); toast(el, '🏆 New record!', true); }
+      }
+      if (ring) { if (st.recordHit) ring.dataset.recordHit = ''; else delete ring.dataset.recordHit; }
+    }
+
+    // The hill changed hands: everyone sees the knockout; the kids involved get their own moment.
+    function hillChanges(el, st, list) {
+      if (!el.isConnected) return;
+      for (const [holder, prev, by] of list) {
+        if (by && prev) {
+          const burst = document.createElement('div');
+          burst.className = 'hill-burst';
+          burst.textContent = 'DETHRONED!';
+          place(burst, st, W / 2, H / 2);
+          el.appendChild(burst);
+          setTimeout(() => burst.remove(), 1300);
+
+          // The crown hops from the old holder to the new one (or just pops off if nobody took it).
+          const from = st.pos.get(prev), to = holder && st.pos.get(holder);
+          if (from) {
+            const crown = document.createElement('div');
+            crown.className = 'hill-crown-fly' + (to ? '' : ' lost');
+            crown.textContent = '👑';
+            place(crown, st, from[0], from[1]);
+            el.appendChild(crown);
+            if (to) requestAnimationFrame(() => requestAnimationFrame(() => place(crown, st, to[0], to[1])));
+            setTimeout(() => crown.remove(), 900);
+          }
+        }
+        if (!st.sound || !st.me) continue;
+        if (holder === st.me && by === st.me) {
+          sfx('crown'); toast(el, '👑 YOU STOLE THE CROWN!', true); confetti(110, 0.5, 0.4);
+        } else if (holder === st.me) {
+          sfx('crown'); toast(el, '👑 You rule the hill!');
+        } else if (prev === st.me && by) {
+          sfx('uncrown'); toast(el, '💥 Knocked off the hill!');
+        } else if (by === st.me && prev) {
+          sfx('pop'); toast(el, '💥 Nice hit!');
+        }
+      }
     }
 
     function bumps(el, st, list) {
@@ -257,11 +349,13 @@ window.rally = (() => {
         if (!c) continue;
         const pa = a.cars.get(id) || pb;
         const x = pa[0] + (pb[0] - pa[0]) * k, y = pa[1] + (pb[1] - pa[1]) * k, ang = pa[2] + (pb[2] - pa[2]) * k;
+        st.pos.set(id, [x, y]);
         c.style.transform = `translate(${(x * st.scale).toFixed(1)}px, ${(y * st.scale).toFixed(1)}px)`;
         const rot = c.firstElementChild;
         if (rot) rot.style.transform = `rotate(${ang.toFixed(1)}deg)`;
         if (!c.classList.contains('placed')) c.classList.add('placed');
       }
+      drawHill(el, st, b.hill, t);
     }
 
     function loop() {

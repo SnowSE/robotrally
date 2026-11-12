@@ -15,6 +15,10 @@ public sealed class ArenaHost(GameService game, LobbyArena arena, ILogger<ArenaH
     /// <summary>Raised on a background thread; subscribers must marshal (InvokeAsync).</summary>
     public event Action<ArenaFrame>? Frame;
 
+    /// <summary>The hill changed hands, the Hall of Fame changed, or King of the Hill was turned on or off.
+    /// Raised on a background thread; subscribers must marshal (InvokeAsync).</summary>
+    public event Action? HillChanged;
+
     public bool Live => game.Phase == GamePhase.Lobby;
 
     /// <summary>Arrow keys from a kid's browser. Ignored outside the lobby.</summary>
@@ -31,16 +35,21 @@ public sealed class ArenaHost(GameService game, LobbyArena arena, ILogger<ArenaH
         {
             try
             {
+                var hillChanged = arena.SetHillEnabled(game.KingOfTheHill);
                 var live = Live;
                 if (!live)
                 {
                     if (wasLive) arena.Halt();
                     wasLive = false;
+                    // The demo just pauses the reign; the race ends it (and banks it for the Hall of Fame).
+                    if (game.Phase is not GamePhase.Demo && arena.EndReign()) hillChanged = true;
+                    if (hillChanged) RaiseHillChanged();
                     continue;
                 }
                 wasLive = true;
                 arena.Sync(game.Players.Select(p => p.Id));
                 var frame = arena.Step(Tick.TotalSeconds);
+                if (hillChanged || frame.HillChanges.Count > 0) RaiseHillChanged();
                 var handlers = Frame;
                 if (handlers is null) continue;
                 foreach (var h in handlers.GetInvocationList().Cast<Action<ArenaFrame>>())
@@ -53,6 +62,17 @@ public sealed class ArenaHost(GameService game, LobbyArena arena, ILogger<ArenaH
             {
                 log.LogWarning(ex, "Arena tick failed");
             }
+        }
+    }
+
+    private void RaiseHillChanged()
+    {
+        var handlers = HillChanged;
+        if (handlers is null) return;
+        foreach (var h in handlers.GetInvocationList().Cast<Action>())
+        {
+            try { h(); }
+            catch { /* a dead circuit must not stop the others */ }
         }
     }
 }

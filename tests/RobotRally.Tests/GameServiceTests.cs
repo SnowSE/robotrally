@@ -60,6 +60,20 @@ public class GameServiceTests
     }
 
     [Fact]
+    public void KingOfTheHill_IsOnByDefault_AdminCanToggleIt_AndResetKeepsTheChoice()
+    {
+        var changes = 0;
+        _game.Changed += () => changes++;
+        Assert.True(_game.KingOfTheHill);
+        _game.SetKingOfTheHill(false);
+        _game.SetKingOfTheHill(false);
+        Assert.False(_game.KingOfTheHill);
+        Assert.Equal(1, changes);
+        _game.Reset();
+        Assert.False(_game.KingOfTheHill);
+    }
+
+    [Fact]
     public void Reset_RejectsOldTokens_AndReturnsToEmptyLobby()
     {
         var p = Join();

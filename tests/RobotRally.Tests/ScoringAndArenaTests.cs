@@ -196,3 +196,160 @@ public class LobbyArenaTests
         Assert.Equal(before.X, a.StateOf("a").X, 3);
     }
 }
+
+public class KingOfTheHillTests
+{
+    private const double Cx = LobbyArena.HillX, Cy = LobbyArena.HillY;
+
+    private static LobbyArena Arena(params string[] ids)
+    {
+        var a = new LobbyArena(new Random(1));
+        a.Sync(ids);
+        // Park everyone well away from the hill unless a test moves them.
+        for (var i = 0; i < ids.Length; i++) a.Place(ids[i], 200 + i * 120, 150);
+        return a;
+    }
+
+    private static List<HillChange> Run(LobbyArena a, double seconds)
+    {
+        var changes = new List<HillChange>();
+        for (var t = 0.0; t < seconds - 1e-9; t += 0.05) changes.AddRange(a.Step(0.05).HillChanges);
+        return changes;
+    }
+
+    [Fact]
+    public void DrivingIntoTheCircle_ClaimsIt_AndTheTimerCountsUp()
+    {
+        var a = Arena("a", "b");
+        a.Place("a", Cx, Cy);
+        var first = a.Step(0.05);
+        Assert.Equal(new HillChange("a", null, null, 0), Assert.Single(first.HillChanges));
+        Assert.Equal("a", first.Hill!.Value.Holder);
+
+        var later = a.Step(0.05);
+        for (var i = 0; i < 39; i++) later = a.Step(0.05);
+        Assert.Equal(2.0, later.Time - later.Hill!.Value.Since, 3);
+    }
+
+    [Fact]
+    public void SomeoneElseDrivingIn_DoesNotTakeIt()
+    {
+        var a = Arena("a", "b");
+        a.Place("a", Cx, Cy);
+        a.Step(0.05);
+        a.Place("b", Cx + 100, Cy + 10);
+        Assert.Empty(Run(a, 1));
+        Assert.Equal("a", a.Hill!.Value.Holder);
+    }
+
+    [Fact]
+    public void BumpingTheHolderOut_HandsTheCircleToTheBumper_AndBanksTheReign()
+    {
+        var a = Arena("a", "b");
+        a.Place("a", Cx, Cy);
+        Run(a, 3);
+        a.Place("b", Cx - 125, Cy, LobbyArena.MaxSpeed, 0); // already in the circle, ramming the holder at top speed
+        a.SetInput("b", DriveInput.Right);
+        var changes = Run(a, 0.15); // contact
+        a.SetInput("b", DriveInput.None);
+        changes.AddRange(Run(a, 1.5));
+
+        var change = Assert.Single(changes);
+        Assert.Equal("b", change.Holder);
+        Assert.Equal("a", change.Previous);
+        Assert.Equal("b", change.KnockedBy);
+        Assert.InRange(change.Reign, 3, 4.5);
+        Assert.Equal("a", Assert.Single(a.HallOfFame()).Id);
+    }
+
+    [Fact]
+    public void DrivingOut_EmptiesTheCircle_WithNoKnockout()
+    {
+        var a = Arena("a");
+        a.Place("a", Cx, Cy);
+        Run(a, 1.5);
+        a.Place("a", 200, 150);
+        var change = Assert.Single(Run(a, 0.1));
+        Assert.Null(change.Holder);
+        Assert.Equal("a", change.Previous);
+        Assert.Null(change.KnockedBy);
+        Assert.Null(a.Hill!.Value.Holder);
+    }
+
+    [Fact]
+    public void WobblingOnTheEdge_DoesNotDropTheCrown()
+    {
+        var a = Arena("a");
+        a.Place("a", Cx, Cy);
+        a.Step(0.05);
+        a.Place("a", Cx + LobbyArena.HillRadius + LobbyArena.HillSlack / 2, Cy);
+        Assert.Empty(Run(a, 0.1));
+        Assert.Equal("a", a.Hill!.Value.Holder);
+    }
+
+    [Fact]
+    public void WhenTheHolderLeaves_WhoeverWasInsideLongestTakesOver()
+    {
+        var a = Arena("a", "b", "c");
+        a.Place("a", Cx, Cy);
+        a.Step(0.05);
+        a.Place("b", Cx + 90, Cy - 50);
+        a.Step(0.05);
+        a.Place("c", Cx - 90, Cy + 50);
+        a.Step(0.05);
+        a.Place("a", 200, 150);
+        var change = Assert.Single(Run(a, 0.05));
+        Assert.Equal("b", change.Holder);
+    }
+
+    [Fact]
+    public void TurningItOff_ClearsTheHill_AndKeepsTheRecord()
+    {
+        var a = Arena("a");
+        a.Place("a", Cx, Cy);
+        Run(a, 2);
+        Assert.True(a.SetHillEnabled(false));
+        Assert.False(a.SetHillEnabled(false));
+        var f = a.Step(0.05);
+        Assert.Null(f.Hill);
+        Assert.Empty(f.HillChanges);
+        Assert.InRange(Assert.Single(a.HallOfFame()).Seconds, 1.9, 2.1);
+
+        a.SetHillEnabled(true);
+        Assert.Equal("a", a.Step(0.05).Hill!.Value.Holder); // still sitting there: claims it again
+    }
+
+    [Fact]
+    public void HallOfFame_KeepsEachRacersBest_Top3_AndForgetsRacersWhoLeave()
+    {
+        var a = Arena("a", "b", "c", "d");
+        void Reign(string id, double secs)
+        {
+            a.Place(id, Cx, Cy);
+            Run(a, secs);
+            a.Place(id, 200, 150);
+            Run(a, 0.05);
+        }
+        Reign("a", 2);
+        Reign("a", 4);
+        Reign("b", 3);
+        Reign("c", 5);
+        Reign("d", 0.5); // too short to count
+        Assert.Equal(["c", "a", "b"], a.HallOfFame().Select(r => r.Id));
+
+        a.Sync(["a", "b", "d"]);
+        Assert.Equal(["a", "b"], a.HallOfFame().Select(r => r.Id));
+    }
+
+    [Fact]
+    public void EndReign_BanksAndEmptiesTheCircle()
+    {
+        var a = Arena("a");
+        a.Place("a", Cx, Cy);
+        Run(a, 1.5);
+        Assert.True(a.EndReign());
+        Assert.False(a.EndReign());
+        Assert.Null(a.Hill!.Value.Holder);
+        Assert.Single(a.HallOfFame());
+    }
+}

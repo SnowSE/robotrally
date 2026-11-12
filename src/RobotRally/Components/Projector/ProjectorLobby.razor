@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject GameService Game
 @inject JoinInfo Join
+@inject ArenaHost Host
 @inject IJSRuntime Js
 
 <div class="pj-lobby">
@@ -20,8 +21,30 @@
         }
     </div>
 
-    <footer class="pj-count">
-        <span class="count-num">@_players.Count</span> @(_players.Count == 1 ? "racer" : "racers") ready · drive with the arrow keys!
+    <footer class="pj-foot">
+        <span class="pj-count">
+            <span class="count-num">@_players.Count</span> @(_players.Count == 1 ? "racer" : "racers") ready · drive with the arrow keys!
+        </span>
+        @if (Host.Arena.HillEnabled && _players.Count > 0)
+        {
+            var fame = HallOfFame();
+            <div class="pj-hof">
+                <span class="pj-hof-title">🏆 Longest on the hill</span>
+                @if (fame.Count == 0)
+                {
+                    <span class="pj-hof-empty">Hold the circle to get on the board!</span>
+                }
+                @foreach (var (racer, secs, place) in fame)
+                {
+                    <span class="pj-hof-entry" @key="racer.Id">
+                        <span class="pj-hof-place">@(place switch { 1 => "🥇", 2 => "🥈", _ => "🥉" })</span>
+                        <CharacterIcon Look="racer.Look" Size="34" Angle="-90" />
+                        <span class="pj-hof-name">@racer.Nickname</span>
+                        <span class="pj-hof-time">@Clock(secs)</span>
+                    </span>
+                }
+            </div>
+        }
     </footer>
 </div>
 
@@ -34,7 +57,19 @@
     {
         Refresh();
         Game.Changed += OnGameChanged;
+        Host.HillChanged += OnHillChanged;
     }
+
+    private void OnHillChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private List<(Player Racer, double Seconds, int Place)> HallOfFame() =>
+        Host.Arena.HallOfFame()
+            .Select(r => (Racer: _players.FirstOrDefault(p => p.Id == r.Id), r.Seconds))
+            .Where(x => x.Racer is not null)
+            .Select((x, i) => (x.Racer!, x.Seconds, i + 1))
+            .ToList();
+
+    private static string Clock(double seconds) => $"{(int)seconds / 60}:{(int)seconds % 60:00}";
 
     // This component has no parameters, so the parent re-rendering won't refresh it: listen directly.
     private void OnGameChanged() => _ = InvokeAsync(() => { Refresh(); StateHasChanged(); });
@@ -47,5 +82,9 @@
         _primed = true;
     }
 
-    public void Dispose() => Game.Changed -= OnGameChanged;
+    public void Dispose()
+    {
+        Game.Changed -= OnGameChanged;
+        Host.HillChanged -= OnHillChanged;
+    }
 }
