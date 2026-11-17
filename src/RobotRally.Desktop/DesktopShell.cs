@@ -12,6 +12,11 @@ internal sealed class DesktopShell : IDesktopShell
     private UpdateManager? _manager;
     private UpdateInfo? _pending;
 
+    /// <summary>Racer and other extra windows that are still open. Photino hands the native window callbacks (moved,
+    /// focused, ...) that live on the PhotinoWindow object, so it must stay reachable until the window closes: once
+    /// it's garbage collected, the next move or focus calls a dead delegate and the whole app is killed.</summary>
+    private readonly HashSet<PhotinoWindow> _openWindows = [];
+
     public string LocalUrl { get; set; } = "http://localhost:5000";
 
     /// <summary>The projector window, once it exists. Racer windows open on top of it.</summary>
@@ -58,14 +63,20 @@ internal sealed class DesktopShell : IDesktopShell
         {
             try
             {
-                new PhotinoWindow(main)
+                var window = new PhotinoWindow(main)
                     .SetTitle(title)
                     .SetUseOsDefaultSize(false)
                     .SetSize(1280, 800)
                     .Center()
                     .RegisterWebMessageReceivedHandler((_, message) => OnWebMessage(message))
-                    .Load(new Uri(url))
-                    .WaitForClose(); // for a second window this just opens it: the projector window runs the loop
+                    .Load(new Uri(url));
+                window.RegisterWindowClosingHandler((sender, _) =>
+                {
+                    lock (_gate) _openWindows.Remove((PhotinoWindow)sender);
+                    return false; // let it close
+                });
+                lock (_gate) _openWindows.Add(window);
+                window.WaitForClose(); // for a second window this just opens it: the projector window runs the loop
             }
             catch
             {
