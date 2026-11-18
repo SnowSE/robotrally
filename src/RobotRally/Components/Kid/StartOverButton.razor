@@ -1,0 +1,33 @@
+@inject IJSRuntime Js
+
+@* Hands the device to the next kid: two taps (so nobody quits mid-race by accident) and you're back at the character builder. *@
+@if (_sure)
+{
+    <div class="start-over sure">
+        <button type="button" class="so-yes" @onclick="Confirm">Yes, new racer</button>
+        <button type="button" class="so-no" @onclick="() => _sure = false">Keep playing</button>
+    </div>
+}
+else
+{
+    <button type="button" class="start-over" title="Start over as a new racer" @onclick="Ask">🔄 Start over</button>
+}
+
+@code {
+    [Parameter, EditorRequired] public EventCallback OnStartOver { get; set; }
+
+    private bool _sure;
+
+    private void Ask()
+    {
+        _sure = true;
+        Js.Sfx("pop");
+    }
+
+    private async Task Confirm()
+    {
+        _sure = false;
+        Js.Sfx("pop");
+        await OnStartOver.InvokeAsync();
+    }
+}

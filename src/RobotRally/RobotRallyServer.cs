@@ -55,7 +55,7 @@ public static class RobotRallyServer
         if (app.Environment.IsDevelopment())
         {
             // Practice racers for rehearsals: http://localhost:5000/dev/bots?n=10
-            app.MapGet("/dev/bots", (DevBots bots, int? n) => $"Added {bots.Add(Math.Clamp(n ?? 8, 1, 24))} practice racers.");
+            app.MapGet("/dev/bots", (DevBots bots, int? n) => $"Added {bots.Add(Math.Clamp(n ?? 8, 1, GameService.MaxPlayers))} practice racers.");
             // Rehearse the finish screen: solves this racer's current level (call it again after each win).
             app.MapGet("/dev/solve", (GameService game, string token) =>
             {

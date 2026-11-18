@@ -28,6 +28,33 @@ else
                 <p class="my-sub">⭐ <b>@Player.Score.ToString("N0")</b> points · <b>@Ordinal(Game.PlaceOf(Player))</b> place. Replay a level to grab stars or beat your points.</p>
             </div>
         </header>
+        @* The maze's block limit is far higher than it needs, so champions get invited back to shrink their solver. *@
+        @{
+            var golfIndex = Game.Levels.Count - 1;
+            var golf = Game.Levels[golfIndex];
+            var fewest = Levels.Fewest(golf.Number);
+            var used = Player.Best.TryGetValue(golfIndex, out var golfBest) ? golfBest.BlocksUsed : (int?)null;
+        }
+        @if (fewest is { } target && used is { } mine)
+        {
+            <aside class="next-up golf @(mine <= target ? "tiny" : "")">
+                <div class="next-icon" aria-hidden="true">@(mine <= target ? "🏅" : "🧩")</div>
+                <div class="next-text">
+                    @if (mine <= target)
+                    {
+                        <h2>🏅 Level @golf.Number in @mine blocks — nobody's done it smaller!</h2>
+                        <p>Your maze solver is as tiny as we know how to make one. Go show somebody.</p>
+                    }
+                    else
+                    {
+                        <h2>🧩 Nice maze solver! Now can you do it in fewer blocks?</h2>
+                        <p>You beat <b>@golf.Name</b> with <b>@mine blocks</b>. It can be done in as few as <b>@target</b>! Smaller programs score more ⭐ points, so it's worth another go.</p>
+                    }
+                </div>
+                <button type="button" class="btn btn-go next-go" @onclick="() => Replay(golfIndex)">▶ Level @golf.Number again</button>
+            </aside>
+        }
+
         @* Everyone who beats every level gets invited to something bigger; quick finishers get a speed shout-out too. *@
         @{ var quick = Game.FinishedQuickly(Player) ? Game.FinishTime(Player) : null; }
         <aside class="next-up @(quick is null ? "" : "quick")">

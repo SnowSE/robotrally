@@ -80,7 +80,7 @@ public static class Nicknames
             var name = $"{Adjectives[rng.Next(Adjectives.Length)]} {Nouns[rng.Next(Nouns.Length)]}";
             if (!taken.Contains(name)) return name;
         }
-        // 400 combos and at most 24 players: practically unreachable, but stay unique anyway.
+        // 400 combos and at most 30 players: practically unreachable, but stay unique anyway.
         var n = 2;
         while (taken.Contains($"Racer {n}")) n++;
         return $"Racer {n}";

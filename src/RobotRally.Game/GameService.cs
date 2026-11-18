@@ -13,7 +13,7 @@ public enum DemoMode { Scripted, Live }
 /// </summary>
 public sealed class GameService
 {
-    public const int MaxPlayers = 24;
+    public const int MaxPlayers = 30;
     public static readonly TimeSpan CountdownTime = TimeSpan.FromSeconds(3.6);
     /// <summary>Kids in this slice at the back of the pack get a 💡 Hint button.</summary>
     public const double HintShare = 0.3;

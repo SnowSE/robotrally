@@ -118,7 +118,7 @@ public static class Levels
             "###.#######",
             "###......G#",
             "###########",
-        ], Direction.East, 8, Everything, null, "Dead ends everywhere. Can you write a maze solver?"),
+        ], Direction.East, 25, Everything, null, "Dead ends everywhere. Can you write a maze solver?"),
     ];
 
     /// <summary>Known-good programs (used by tests and the admin's live demo).</summary>
@@ -139,6 +139,20 @@ public static class Levels
 
     /// <summary>Fewest blocks we know of for a level: using this many (or fewer) earns full block points.</summary>
     public static int Par(int levelNumber) => ProgramOps.Count(Solution(levelNumber));
+
+    /// <summary>The tightest program we know of, for the "do it again with fewer blocks" challenge on the finish
+    /// screen. The maze has room to play golf in (its block limit is far higher than it needs); the earlier levels
+    /// are already at their minimum, so they have nothing to challenge with.</summary>
+    public static List<Block>? TinySolution(int levelNumber) => levelNumber switch
+    {
+        // Found by exhaustive search: nothing solves the maze in 5 blocks or fewer. Drive, turn left,
+        // then spin right while a wall is in the way -- the left-hand rule, as small as it goes.
+        10 => [Until(F, L, Repeat(3, IfWall(R)))],
+        _ => null,
+    };
+
+    /// <summary>Block count of <see cref="TinySolution"/>, or null when the level has no tighter program than par.</summary>
+    public static int? Fewest(int levelNumber) => TinySolution(levelNumber) is { } p ? ProgramOps.Count(p) : null;
 
     /// <summary>A program that grabs every bonus star on the way to the flag (null if the level has none).</summary>
     public static List<Block>? StarSolution(int levelNumber) => levelNumber switch

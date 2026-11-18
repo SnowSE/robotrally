@@ -92,6 +92,32 @@ public class LevelTests
     }
 
     [Theory, MemberData(nameof(LevelNumbers))]
+    public void TinySolution_SolvesLevel_AndIsSmallerThanPar(int n)
+    {
+        var level = Levels.All[n - 1];
+        if (Levels.TinySolution(n) is not { } tiny)
+        {
+            Assert.Null(Levels.Fewest(n));
+            return;
+        }
+        Assert.Equal(RunOutcome.Success, Interpreter.Run(level, tiny).Outcome);
+        Assert.All(ProgramOps.KindsUsed(tiny), k => Assert.Contains(k, level.Toolbox));
+        Assert.Equal(ProgramOps.Count(tiny), Levels.Fewest(n));
+        // The finish screen dares kids to beat par; a "tiny" program that isn't smaller would be a broken dare.
+        Assert.True(Levels.Fewest(n) < Levels.Par(n), $"tiny solution is {Levels.Fewest(n)}, par is {Levels.Par(n)}");
+    }
+
+    [Fact]
+    public void Level10_HasRoomToGolfIn_AndSixBlocksIsTheFloor()
+    {
+        var maze = Levels.All[9];
+        Assert.Equal(6, Levels.Fewest(maze.Number));
+        // Exhaustive search over every program of 5 blocks or fewer found no solution, so 6 really is the floor.
+        // Kids need room to get there from a sprawling first attempt.
+        Assert.True(maze.BlockLimit >= 3 * Levels.Fewest(maze.Number));
+    }
+
+    [Theory, MemberData(nameof(LevelNumbers))]
     public void Par_IsTheReferenceSolution_AndReferenceTakesNoStars(int n)
     {
         Assert.Equal(ProgramOps.Count(Levels.Solution(n)), Levels.Par(n));

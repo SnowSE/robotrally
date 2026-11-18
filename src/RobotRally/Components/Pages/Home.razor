@@ -37,6 +37,10 @@
                 break;
         }
     }
+    @if (_player is not null)
+    {
+        <StartOverButton OnStartOver="StartOver" />
+    }
     <MuteButton />
 </div>
 
@@ -72,6 +76,17 @@
         _player = p;
         Js.Sfx("pop");
         try { await Js.InvokeVoidAsync("rally.store.set", TokenKey, p.Token); } catch { }
+    }
+
+    /// <summary>Hands the device to the next kid: this racer leaves the game and we go back to the character builder.</summary>
+    private async Task StartOver()
+    {
+        if (_player is null) return;
+        Game.Remove(_player.Id);
+        _player = null;
+        _full = false;
+        _celebrated = false;
+        await ForgetToken();
     }
 
     private void OnGameChanged() => _ = InvokeAsync(async () =>

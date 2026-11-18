@@ -99,6 +99,23 @@ h1, h2, h3 { margin: 0; font-weight: 400; }
     box-shadow: 0 3px 0 rgba(0, 0, 0, .2);
 }
 
+/* "start over" (hand the device to the next kid) sits in the corner the mute button leaves free */
+.start-over {
+    position: fixed; left: 12px; bottom: 12px; z-index: 40;
+    border: 0; border-radius: 999px; padding: 10px 16px;
+    background: rgba(255, 255, 255, .9); color: var(--ink);
+    font-family: inherit; font-size: 15px; font-weight: 800;
+    box-shadow: 0 3px 0 rgba(0, 0, 0, .2);
+}
+.start-over.sure { display: flex; gap: 8px; padding: 0; background: none; box-shadow: none; }
+.start-over.sure button {
+    border: 0; border-radius: 999px; padding: 10px 16px;
+    font-family: inherit; font-size: 15px; font-weight: 800;
+    box-shadow: 0 3px 0 rgba(0, 0, 0, .2);
+}
+.start-over .so-yes { background: var(--sun); color: var(--ink); }
+.start-over .so-no { background: rgba(255, 255, 255, .9); color: var(--ink); }
+
 /* ---------- character art ---------- */
 .char-icon { display: block; overflow: visible; }
 .bob { animation: bob 1.8s ease-in-out infinite; }
@@ -604,6 +621,8 @@ body.dragging .trash-zone { display: block; }
     background: var(--asphalt); color: var(--chalk); box-shadow: 0 6px 0 rgba(0, 0, 0, .22);
 }
 .next-up.quick { background: linear-gradient(120deg, #3a2f7a, var(--asphalt) 70%); box-shadow: 0 6px 0 rgba(0, 0, 0, .22), inset 0 0 0 3px var(--sun); }
+.next-up.golf { background: linear-gradient(120deg, #1f5f46, var(--asphalt) 70%); }
+.next-up.golf.tiny { box-shadow: 0 6px 0 rgba(0, 0, 0, .22), inset 0 0 0 3px var(--sun); }
 .next-icon { font-size: 56px; line-height: 1; }
 .next-text { flex: 1; min-width: 0; }
 .next-text h2 { margin: 0 0 4px; font-family: var(--display); font-weight: 400; font-size: 28px; color: var(--sun); }
