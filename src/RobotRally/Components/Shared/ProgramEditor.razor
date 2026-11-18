@@ -13,7 +13,7 @@
                  draggable="@(Interactive ? "true" : "false")"
                  @ondragstart="() => StartNew(k)" @ondragend="EndDrag" @onclick="() => Append(k)"
                  title="@k.Explain()">
-                <span class="b-icon">@k.Icon()</span><span class="b-label">@k.Label()</span>
+                <span class="b-icon @(k.FlipIcon() ? "flip-y" : "")">@k.Icon()</span><span class="b-label">@k.Label()</span>
                 @if (isNew) { <span class="new-badge">New!</span> }
             </div>
         }
@@ -182,7 +182,7 @@
              @ondragstart="() => StartExisting(b.Id)" @ondragstart:stopPropagation="true" @ondragend="EndDrag"
              @ondragover:preventDefault @ondrop="() => DropAt(list, list.IndexOf(b) + 1)" @ondrop:stopPropagation="true">
             <div class="block-head drop-target" @ondragover:preventDefault @ondrop="() => DropOnBlock(b, list)" @ondrop:stopPropagation="true">
-                <span class="b-icon">@b.Kind.Icon()</span>
+                <span class="b-icon @(b.Kind.FlipIcon() ? "flip-y" : "")">@b.Kind.Icon()</span>
                 <span class="b-label">@b.Kind.Label()</span>
                 @if (b.Kind == BlockKind.Repeat)
                 {

@@ -13,7 +13,7 @@
         {
             <div class="chip-block cat-@b.Kind.Category()">
                 <div class="chip-head">
-                    <span>@b.Kind.Icon()</span>
+                    <span class="@(b.Kind.FlipIcon() ? "flip-y" : "")">@b.Kind.Icon()</span>
                     <span>@b.Kind.Label()@(b.Kind == BlockKind.Repeat ? $" {b.Count} times" : "")</span>
                 </div>
                 @if (b.IsContainer)

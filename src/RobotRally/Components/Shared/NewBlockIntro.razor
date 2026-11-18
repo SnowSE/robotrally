@@ -13,7 +13,7 @@
             @foreach (var k in Level.NewBlocks)
             {
                 <li>
-                    <span class="block cat-@k.Category() chip"><span class="b-icon">@k.Icon()</span><span class="b-label">@k.Label()</span></span>
+                    <span class="block cat-@k.Category() chip"><span class="b-icon @(k.FlipIcon() ? "flip-y" : "")">@k.Icon()</span><span class="b-label">@k.Label()</span></span>
                     <span class="intro-explain">@k.Explain()</span>
                 </li>
             }

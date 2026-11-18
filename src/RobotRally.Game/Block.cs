@@ -52,6 +52,12 @@ public static class BlockKindExtensions
         _ => "?",
     };
 
+    /// <summary>True when the icon has to be mirrored across the horizontal axis to read right (CSS .flip-y).
+    /// The turn arrows are drawn tail-at-the-top hooking downward, so a kid tracing the "turn left" arrow travels
+    /// *down* the page and sees it bend to the right. Flipped, the tail starts at the bottom and the arrow turns
+    /// the way its label says.</summary>
+    public static bool FlipIcon(this BlockKind k) => k is BlockKind.TurnLeft or BlockKind.TurnRight;
+
     public static string Label(this BlockKind k) => k switch
     {
         BlockKind.Forward => "Forward",

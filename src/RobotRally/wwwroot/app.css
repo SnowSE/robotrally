@@ -182,6 +182,10 @@ h1, h2, h3 { margin: 0; font-weight: 400; }
     border-radius: 12px;
 }
 .b-icon { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .25)); }
+/* The turn arrows are drawn tail-at-the-top: traced top-to-bottom, "turn left" bends right. Mirroring them
+   across the horizontal axis starts the tail at the bottom, so each arrow turns the way its label says. */
+.flip-y { display: inline-block; transform: scaleY(-1); }
+.b-icon.flip-y { filter: drop-shadow(0 -1px 0 rgba(0, 0, 0, .25)); } /* shadow flips with the glyph; aim it back down */
 .b-label { flex: 1; text-shadow: 0 1px 0 rgba(0, 0, 0, .2); }
 .block.container { padding-bottom: 0; }
 .block-body {
